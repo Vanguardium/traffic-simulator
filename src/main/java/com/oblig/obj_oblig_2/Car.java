@@ -3,14 +3,14 @@ package com.oblig.obj_oblig_2;
 import javafx.scene.control.skin.TextInputControlSkin;
 
 //Represents a car
-public class Car {
+public class Car extends Thread{
     private Position position;
     private double speed;
     private CarDirection direction;
     private Road currentRoad;
 
     public Car () {
-        this.position = new Position();
+        this.position = new Position(0,0);
         this.speed = 0;
         this.direction = CarDirection.NORTH;
     }
@@ -18,6 +18,18 @@ public class Car {
         this.position = position;
         this.speed = speed;
         this.direction = direction;
+    }
+
+    @Override
+    public void run(){
+        while(!Thread.interrupted()){
+            move();
+            try {
+                Thread.sleep(100);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
     }
 
     public void move() {
@@ -38,6 +50,18 @@ public class Car {
         }
     }
 
+    public double getX(){
+        return position.getX();
+    }
+    public double getY(){
+        return position.getY();
+    }
+    public void setX(double x){
+        position.setX(x);
+    }
+    public void setY(double y){
+        position.setY(y);
+    }
     public Position getPosition(){
         return position;
     }
@@ -47,7 +71,7 @@ public class Car {
     public double getSpeed(){
         return speed;
     }
-    public void setSpeed(){
+    public void setSpeed(double speed){
         this.speed = speed;
     }
     public CarDirection getDirection(){

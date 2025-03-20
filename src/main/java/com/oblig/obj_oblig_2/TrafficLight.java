@@ -1,7 +1,7 @@
 package com.oblig.obj_oblig_2;
 
 //Represents a traffic light
-public class TrafficLight {
+public class TrafficLight extends Thread {
     private LightState state;
     private Position position;
     private int redTime = 20;
