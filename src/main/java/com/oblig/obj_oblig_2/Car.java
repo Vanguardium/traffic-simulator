@@ -8,16 +8,18 @@ public class Car extends Thread{
     private double speed;
     private CarDirection direction;
     private Road currentRoad;
+    private TrafficLight trafficLight;
 
     public Car () {
         this.position = new Position(0,0);
         this.speed = 0;
         this.direction = CarDirection.NORTH;
     }
-    public Car (Position position, double speed, CarDirection direction){
+    public Car (Position position, double speed, CarDirection direction, TrafficLight trafficLight) {
         this.position = position;
         this.speed = speed;
         this.direction = direction;
+        this.trafficLight = trafficLight;
     }
 
     @Override
@@ -33,6 +35,10 @@ public class Car extends Thread{
     }
 
     public void move() {
+        if(shouldStopForTrafficLight()){
+            return;
+        }
+
         // Move the car in the direction it is facing
         switch (direction) {
             case NORTH:
@@ -48,6 +54,14 @@ public class Car extends Thread{
                 position.setX(position.getX() - speed);
                 break;
         }
+    }
+
+    private boolean shouldStopForTrafficLight(){
+        if(trafficLight == null){
+            return false;
+        }
+        LightState lightState = trafficLight.getLightState();
+        return lightState == LightState.RED || lightState == LightState.YELLOW || lightState == LightState.GREEN;
     }
 
     public boolean checkCollision (TrafficLight trafficLight) {
