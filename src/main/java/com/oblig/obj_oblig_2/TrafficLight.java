@@ -44,12 +44,17 @@ public class TrafficLight extends Thread {
         }
     }
 
+    public boolean checkCollision(Car car){
+        // Check if the car is close to the traffic light
+        return this.position.equals(car.getPosition());
+    }
+
     public void setState(LightState newState){
         this.state = newState;
         this.timeInState = 0;
     }
 
-    public LightState getState(){
+    public LightState getLightState(){
         return state;
     }
     public Position getPosition(){

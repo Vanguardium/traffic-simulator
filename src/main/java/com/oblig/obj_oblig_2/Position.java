@@ -9,6 +9,16 @@ public class Position {
         this.x = x;
         this.y = y;
     }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        Position position = (Position) obj;
+        return Double.compare(position.x, x) == 0 && Double.compare(position.y, y) == 0;
+    }
+
+    //Getters and setters
     public double getX() {
         return x;
     }

@@ -50,6 +50,11 @@ public class Car extends Thread{
         }
     }
 
+    public boolean checkCollision (TrafficLight trafficLight) {
+        // Check if the car is close to the traffic light
+        return this.position.equals(trafficLight.getPosition());
+    }
+
     public double getX(){
         return position.getX();
     }
