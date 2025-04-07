@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.layout.AnchorPane?>
+<?import javafx.scene.canvas.Canvas?>
+
+<AnchorPane xmlns="http://javafx.com/javafx"
+            xmlns:fx="http://javafx.com/fxml"
+            fx:controller="com.oblig.obj_oblig_2.TrafficController"
+            prefHeight="600.0" prefWidth="800.0">
+    <children>
+        <Canvas fx:id="canvas" width="800" height="600" AnchorPane.topAnchor="0.0"
+                AnchorPane.leftAnchor="0.0"/>
+    </children>
+</AnchorPane>

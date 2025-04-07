@@ -5,7 +5,6 @@ public class TrafficLight extends Thread {
     private LightState state;
     private Position position;
     private int redTime = 20;
-    private int yellowTime = 5;
     private int greenTime = 20;
     private int timeInState = 0;
 
@@ -29,15 +28,9 @@ public class TrafficLight extends Thread {
                     timeInState = 0;
                 }
                 break;
-            case YELLOW:
-                if (timeInState >= yellowTime){
-                    state = LightState.RED;
-                    timeInState = 0;
-                }
-                break;
             case GREEN:
                 if (timeInState >= greenTime){
-                    state = LightState.YELLOW;
+                    state = LightState.RED;
                     timeInState = 0;
                 }
                 break;

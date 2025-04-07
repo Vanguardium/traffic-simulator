@@ -61,7 +61,7 @@ public class Car extends Thread{
             return false;
         }
         LightState lightState = trafficLight.getLightState();
-        return lightState == LightState.RED || lightState == LightState.YELLOW || lightState == LightState.GREEN;
+        return lightState == LightState.RED || lightState == LightState.GREEN;
     }
 
     public boolean checkCollision (TrafficLight trafficLight) {
