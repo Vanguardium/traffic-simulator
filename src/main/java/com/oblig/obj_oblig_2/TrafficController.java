@@ -6,7 +6,9 @@ import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.paint.Color;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 public class TrafficController {
     @FXML
@@ -30,14 +32,17 @@ public class TrafficController {
         setupSimulation();
         drawMap();
 
+        ConfigLoader config = ConfigLoader.getInstance();
+
         // Create animation timer
         animationTimer = new AnimationTimer() {
             private int frameCount = 0;
+            private int updateInterval = config.getTrafficLightUpdateInterval();
 
             @Override
             public void handle(long now) {
-                // Update traffic lights every 100 frames
-                if (frameCount % 100 == 0) {
+                // Update traffic lights based on configured interval
+                if (frameCount % updateInterval == 0) {
                     updateTrafficLights();
                 }
 
@@ -48,38 +53,6 @@ public class TrafficController {
         };
     }
 
-    private void setupSimulation() {
-        // Create intersections at specific positions
-        Intersection intersection1 = new Intersection(200, 150);
-        Intersection intersection2 = new Intersection(600, 150);
-        Intersection intersection3 = new Intersection(200, 450);
-        Intersection intersection4 = new Intersection(600, 450);
-
-        // Add each intersection to the list
-        intersections.add(intersection1);
-        intersections.add(intersection2);
-        intersections.add(intersection3);
-        intersections.add(intersection4);
-
-        // Create horizontal roads
-        Road horizontalRoad1 = new Road(0, 150, trafficCanvas.getWidth(), 150);
-        Road horizontalRoad2 = new Road(0, 450, trafficCanvas.getWidth(), 450);
-
-        // Create vertical roads
-        Road verticalRoad1 = new Road(200, 0, 200, trafficCanvas.getHeight());
-        Road verticalRoad2 = new Road(600, 0, 600, trafficCanvas.getHeight());
-
-        // Add roads to the list
-        roads.add(horizontalRoad1);
-        roads.add(horizontalRoad2);
-        roads.add(verticalRoad1);
-        roads.add(verticalRoad2);
-
-        // Setup traffic lights for each intersection
-        for (Intersection intersection : intersections) {
-            intersection.setupTrafficLights();
-        }
-    }
 
     private void drawMap() {
         // Clear canvas
@@ -128,5 +101,43 @@ public class TrafficController {
             intersection.resetTrafficLights();
         }
         drawMap();
+    }
+    private void setupSimulation() {
+        ConfigLoader config = ConfigLoader.getInstance();
+
+        // Create intersections from config
+        for (Position pos : config.getIntersectionPositions()) {
+            intersections.add(new Intersection(pos.getX(), pos.getY()));
+        }
+
+        // Create roads based on intersection positions
+        createRoadsFromIntersections();
+
+        // Setup traffic lights
+        for (Intersection intersection : intersections) {
+            intersection.setupTrafficLights();
+        }
+    }
+
+    private void createRoadsFromIntersections() {
+        // Group intersections by X and Y coordinates
+        Set<Double> xCoords = new HashSet<>();
+        Set<Double> yCoords = new HashSet<>();
+
+        for (Intersection intersection : intersections) {
+            Position pos = intersection.getPosition();
+            xCoords.add(pos.getX());
+            yCoords.add(pos.getY());
+        }
+
+        // Create horizontal roads for each Y coordinate
+        for (Double y : yCoords) {
+            roads.add(new Road(0, y, trafficCanvas.getWidth(), y));
+        }
+
+        // Create vertical roads for each X coordinate
+        for (Double x : xCoords) {
+            roads.add(new Road(x, 0, x, trafficCanvas.getHeight()));
+        }
     }
 }

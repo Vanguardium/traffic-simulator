@@ -10,15 +10,17 @@ public class TrafficLight {
     private Position position;
     private Direction direction;
     private LightState state;
-    private final int SIZE = 15;
+    private final int SIZE;
 
     public TrafficLight(Position intersectionPos, Direction direction) {
         this.direction = direction;
+        ConfigLoader config = ConfigLoader.getInstance();
+        this.SIZE = config.getTrafficLightSize();
 
         // Position the traffic light based on the intersection position and direction
         double x = intersectionPos.getX();
         double y = intersectionPos.getY();
-        int offset = 25; // Distance from intersection center
+        int offset = config.getTrafficLightOffset(); // Get from config
 
         switch (direction) {
             case NORTH:

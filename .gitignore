@@ -16,7 +16,6 @@ target/
 ### Maven ###
 .mvn
 mvnw.cmd
-pom.xml
 mvnw
 .mvn/wrapper
 

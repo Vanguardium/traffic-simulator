@@ -10,9 +10,17 @@ import java.io.IOException;
 public class TrafficApplication extends Application {
 
     @Override
-    public void start(Stage stage) throws IOException{
+    public void start(Stage stage) throws IOException {
+        try {
+            ConfigLoader.initialize("src/main/resources/com/oblig/obj_oblig_2/default-map.json");
+        } catch (IOException e) {
+            System.err.println("Failed to load configuration: " + e.getMessage());
+        }
+
+        ConfigLoader config = ConfigLoader.getInstance();
+
         FXMLLoader fxmlLoader = new FXMLLoader(TrafficApplication.class.getResource("traffic-view.fxml"));
-        Scene scene = new Scene(fxmlLoader.load(), 1200, 800);
+        Scene scene = new Scene(fxmlLoader.load(), config.getWindowWidth(), config.getWindowHeight());
         stage.setTitle("Traffic Simulation");
         stage.setScene(scene);
         stage.show();
@@ -20,6 +28,14 @@ public class TrafficApplication extends Application {
 
     //Main method to launch the application
     public static void main(String[] args) {
+        if (args.length > 0) {
+            try {
+                ConfigLoader.initialize(args[0]);
+                System.out.println("Loaded map: " + args[0]);
+            } catch (IOException e) {
+                System.err.println("Failed to load map: " + e.getMessage());
+            }
+        }
         launch();
     }
 
@@ -44,3 +60,6 @@ public class TrafficApplication extends Application {
     }
 }
 
+//can you pull out all numbers and put them in to a config file
+//and use them in the code instead of hardcoded numbers
+//is it possible to just place the intersection to make the roads follow from that as they need to be horizontal or vertical

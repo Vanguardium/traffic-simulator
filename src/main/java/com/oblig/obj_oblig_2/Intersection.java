@@ -59,4 +59,7 @@ public class Intersection {
         currentGreenLightIndex = 0;
         trafficLights.get(0).setState(TrafficLight.LightState.GREEN);
     }
+    public Position getPosition() {
+        return position;
+    }
 }

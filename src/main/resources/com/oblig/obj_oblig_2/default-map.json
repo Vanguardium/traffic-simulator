@@ -1,0 +1,23 @@
+{
+  "application": {
+    "windowWidth": 1200,
+    "windowHeight": 800,
+    "title": "Traffic Simulation"
+  },
+  "trafficLight": {
+    "size": 15,
+    "offset": 25
+  },
+  "map": {
+    "intersections": [
+      {"x": 200, "y": 150},
+      {"x": 600, "y": 150},
+      {"x": 200, "y": 450},
+      {"x": 600, "y": 450}
+    ],
+    "roadWidth": 40
+  },
+  "simulation": {
+    "trafficLightUpdateInterval": 100
+  }
+}
