@@ -1,60 +1,71 @@
 package com.oblig.obj_oblig_2;
 
-//Represents a traffic light
-public class TrafficLight extends Thread {
-    private LightState state;
+import javafx.scene.canvas.GraphicsContext;
+import javafx.scene.paint.Color;
+
+public class TrafficLight {
+    public enum Direction {NORTH, EAST, SOUTH, WEST}
+    public enum LightState {RED, GREEN, YELLOW}
+
     private Position position;
-    private int redTime = 20;
-    private int greenTime = 20;
-    private int timeInState = 0;
+    private Direction direction;
+    private LightState state;
+    private final int SIZE = 15;
 
-    public TrafficLight() {
-        this.state = LightState.RED;
-        this.position = new Position(0, 0);
-    }
+    public TrafficLight(Position intersectionPos, Direction direction) {
+        this.direction = direction;
 
-    public TrafficLight(Position position) {
-        this.state = LightState.RED;
-        this.position = position;
-    }
+        // Position the traffic light based on the intersection position and direction
+        double x = intersectionPos.getX();
+        double y = intersectionPos.getY();
+        int offset = 25; // Distance from intersection center
 
-    public void update(){
-        timeInState++;
-
-        switch(state){
-            case RED:
-                if (timeInState >= redTime){
-                    state = LightState.GREEN;
-                    timeInState = 0;
-                }
+        switch (direction) {
+            case NORTH:
+                this.position = new Position(x, y - offset);
                 break;
-            case GREEN:
-                if (timeInState >= greenTime){
-                    state = LightState.RED;
-                    timeInState = 0;
-                }
+            case EAST:
+                this.position = new Position(x + offset, y);
+                break;
+            case SOUTH:
+                this.position = new Position(x, y + offset);
+                break;
+            case WEST:
+                this.position = new Position(x - offset, y);
                 break;
         }
+
+        this.state = LightState.RED;
     }
 
-    public boolean checkCollision(Car car){
-        // Check if the car is close to the traffic light
-        return this.position.equals(car.getPosition());
-    }
-
-    public void setState(LightState newState){
-        this.state = newState;
-        this.timeInState = 0;
-    }
-
-    public LightState getLightState(){
+    public LightState getLightState() {
         return state;
     }
-    public Position getPosition(){
-        return position;
-    }
-    public void setPosition(Position position){
-        this.position = position;
+
+    public void setState(LightState state) {
+        this.state = state;
     }
 
+    public Position getPosition() {
+        return position;
+    }
+
+    public void draw(GraphicsContext gc) {
+        Color lightColor;
+        switch (state) {
+            case GREEN:
+                lightColor = Color.GREEN;
+                break;
+            case YELLOW:
+                lightColor = Color.YELLOW;
+                break;
+            default:
+                lightColor = Color.RED;
+        }
+
+        gc.setFill(lightColor);
+        gc.fillOval(position.getX() - SIZE/2, position.getY() - SIZE/2, SIZE, SIZE);
+        gc.setStroke(Color.BLACK);
+        gc.strokeOval(position.getX() - SIZE/2, position.getY() - SIZE/2, SIZE, SIZE);
+    }
 }

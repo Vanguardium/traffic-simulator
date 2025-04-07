@@ -2,13 +2,22 @@
 
 <?import javafx.scene.layout.AnchorPane?>
 <?import javafx.scene.canvas.Canvas?>
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.VBox?>
 
 <AnchorPane xmlns="http://javafx.com/javafx"
             xmlns:fx="http://javafx.com/fxml"
             fx:controller="com.oblig.obj_oblig_2.TrafficController"
             prefHeight="600.0" prefWidth="800.0">
     <children>
-        <Canvas fx:id="canvas" width="800" height="600" AnchorPane.topAnchor="0.0"
+        <Canvas fx:id="trafficCanvas" width="800" height="550" AnchorPane.topAnchor="0.0"
                 AnchorPane.leftAnchor="0.0"/>
+        <HBox spacing="10" alignment="CENTER" AnchorPane.bottomAnchor="10.0"
+              AnchorPane.leftAnchor="10.0" AnchorPane.rightAnchor="10.0">
+            <Button text="Start" onAction="#startSimulation" />
+            <Button text="Stop" onAction="#stopSimulation" />
+            <Button text="Reset" onAction="#resetSimulation" />
+        </HBox>
     </children>
 </AnchorPane>
