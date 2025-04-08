@@ -42,6 +42,16 @@ public class ConfigLoader {
         return config.path("application").path("windowHeight").asInt(800);
     }
 
+    // Car config
+    public int getCarSize() {
+        return config.path("car").path("size").asInt(10);
+    }
+    
+    public double getMinCarDistance() {
+        // Default is 2 car lengths
+        return getCarSize() * 2;
+    }
+
     // TrafficLight config
     public int getTrafficLightSize() {
         return config.path("trafficLight").path("size").asInt(15);
@@ -49,6 +59,10 @@ public class ConfigLoader {
 
     public int getTrafficLightOffset() {
         return config.path("trafficLight").path("offset").asInt(25);
+    }
+
+    public int getTrafficLightDetectionRadius() {
+        return config.path("trafficLight").path("detectionRadius").asInt(50);
     }
 
     // Map config
@@ -71,6 +85,14 @@ public class ConfigLoader {
 
     // Simulation config
     public int getTrafficLightUpdateInterval() {
-        return config.path("simulation").path("trafficLightUpdateInterval").asInt(100);
+        return config.path("simulation").path("trafficLightUpdateInterval").asInt(500);
+    }
+    
+    public double getCarSpeed() {
+        return config.path("simulation").path("carSpeed").asDouble(2.0);
+    }
+    
+    public int getCarsPerRoad() {
+        return config.path("simulation").path("carsPerRoad").asInt(2);
     }
 }

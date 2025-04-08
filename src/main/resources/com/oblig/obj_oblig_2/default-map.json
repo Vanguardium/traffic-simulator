@@ -18,6 +18,6 @@
     "roadWidth": 40
   },
   "simulation": {
-    "trafficLightUpdateInterval": 100
+    "trafficLightUpdateInterval": 1000
   }
 }
