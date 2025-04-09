@@ -42,21 +42,18 @@ public class Intersection {
         trafficLights.get(0).setState(TrafficLight.LightState.GREEN);
     }
     
-    public TrafficLight getTrafficLight(TrafficLight.Direction direction) {
-        return lightMap.get(direction);
-    }
-
     public void draw(GraphicsContext gc) {
-        // Draw the intersection
-        gc.setFill(Color.DARKGRAY);
-        gc.fillRect(position.getX() - SIZE/2, position.getY() - SIZE/2, SIZE, SIZE);
-        
+        // Draw intersection area
+        gc.setFill(Color.GRAY);
+        gc.fillRect(position.getX() - SIZE / 2, position.getY() - SIZE / 2, SIZE, SIZE);
+    
         // Draw traffic lights
         for (TrafficLight light : trafficLights) {
             light.draw(gc);
         }
     }
     
+
     public void updateTrafficLights() {
         // Set all lights to red initially
         for (TrafficLight light : trafficLights) {
@@ -91,5 +88,20 @@ public class Intersection {
     
     public List<TrafficLight> getTrafficLights() {
         return trafficLights;
+    }
+
+    public TrafficLight getTrafficLight(CarDirection direction) {
+        switch (direction) {
+            case NORTH:
+                return lightMap.get(TrafficLight.Direction.NORTH);
+            case SOUTH:
+                return lightMap.get(TrafficLight.Direction.SOUTH);
+            case EAST:
+                return lightMap.get(TrafficLight.Direction.EAST);
+            case WEST:
+                return lightMap.get(TrafficLight.Direction.WEST);
+            default:
+                return null;
+        }
     }
 }

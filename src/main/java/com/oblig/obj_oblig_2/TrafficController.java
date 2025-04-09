@@ -30,6 +30,7 @@ public class TrafficController {
     private int currentSpawnInterval = 100; // Initial value, will be randomized
     private int minSpawnInterval = 50;
     private int maxSpawnInterval = 200;
+    private int maxCars; // Maximum number of cars allowed
 
     @FXML
     public void initialize() {
@@ -44,6 +45,7 @@ public class TrafficController {
         drawMap();
 
         ConfigLoader config = ConfigLoader.getInstance();
+        maxCars = config.getMaxCars();
 
         // Create animation timer
         animationTimer = new AnimationTimer() {
@@ -57,12 +59,15 @@ public class TrafficController {
                     updateTrafficLights();
                 }
                 
+                // Remove out-of-bounds cars
+                removeOutOfBoundsCars();
+                
                 // Update cars with information about nearby vehicles
                 updateVehicleAwareness();
                 
-                // Spawn new cars with randomized intervals
+                // Spawn new cars only if below the maximum
                 framesSinceLastSpawn++;
-                if (framesSinceLastSpawn >= currentSpawnInterval) {
+                if (framesSinceLastSpawn >= currentSpawnInterval && simulation.getCars().size() < maxCars) {
                     spawnNewCars();
                     framesSinceLastSpawn = 0;
                     // Randomize the next spawn interval
@@ -107,16 +112,16 @@ public class TrafficController {
 
     private void drawMap() {
         if (gc == null) return;
-        
-        // Clear canvas
-        gc.setFill(Color.FORESTGREEN);
+    
+        // Draw background
+        gc.setFill(Color.GREEN); // Grass color
         gc.fillRect(0, 0, trafficCanvas.getWidth(), trafficCanvas.getHeight());
-        
+    
         // Draw roads
         for (Road road : roads) {
             road.draw(gc);
         }
-        
+    
         // Draw intersections
         for (Intersection intersection : intersections) {
             intersection.draw(gc);
@@ -133,9 +138,11 @@ public class TrafficController {
     
     private void drawCar(Car car) {
         Position pos = car.getPosition();
-        gc.setFill(Color.RED);
         int carSize = car.getSize();
-        gc.fillRect(pos.getX() - carSize/2, pos.getY() - carSize/2, carSize, carSize);
+    
+        // Draw car body
+        gc.setFill(Color.RED); // Car color
+        gc.fillRect(pos.getX() - carSize / 2, pos.getY() - carSize / 2, carSize, carSize);
     }
     
     private void updateTrafficLights() {
@@ -267,6 +274,16 @@ public class TrafficController {
     private void spawnNewCars() {
         if (roads.isEmpty()) return;
         
+        // Get the current number of cars
+        int currentCarCount = simulation.getCars().size();
+        
+        // Calculate how many more cars we can add
+        int availableSlots = maxCars - currentCarCount;
+        if (availableSlots <= 0) return; // Can't add more cars
+        
+        // Limited number of new cars to add
+        int newCarsToAdd = Math.min(3, availableSlots); // Add at most 3 new cars at once
+        
         ConfigLoader config = ConfigLoader.getInstance();
         double baseCarSpeed = config.getCarSpeed();
         double canvasWidth = trafficCanvas.getWidth();
@@ -351,6 +368,28 @@ public class TrafficController {
         List<Car> cars = simulation.getCars();
         for (Car car : cars) {
             car.setNearbyVehicles(cars);
+        }
+    }
+    
+    private void removeOutOfBoundsCars() {
+        List<Car> carsToRemove = new ArrayList<>();
+        double canvasWidth = trafficCanvas.getWidth();
+        double canvasHeight = trafficCanvas.getHeight();
+        int margin = 100; // Allow cars to go slightly off-screen before removing
+        
+        for (Car car : simulation.getCars()) {
+            Position pos = car.getPosition();
+            // Check if car is far outside the canvas bounds
+            if (pos.getX() < -margin || pos.getX() > canvasWidth + margin || 
+                pos.getY() < -margin || pos.getY() > canvasHeight + margin) {
+                carsToRemove.add(car);
+            }
+        }
+        
+        // Remove the out-of-bounds cars
+        for (Car car : carsToRemove) {
+            car.interrupt(); // Stop the car thread
+            simulation.getCars().remove(car);
         }
     }
 }

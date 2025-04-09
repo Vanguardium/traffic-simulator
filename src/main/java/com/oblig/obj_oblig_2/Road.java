@@ -15,32 +15,21 @@ public class Road {
     }
 
     public void draw(GraphicsContext gc) {
-        gc.setFill(Color.GRAY);
-
-        // Determine if horizontal or vertical road
-        if (y1 == y2) {
-            // Horizontal road
-            gc.fillRect(x1, y1 - WIDTH/2, x2 - x1, WIDTH);
-
-            // Draw road markings
-            gc.setStroke(Color.WHITE);
-            gc.setLineWidth(2);
-            double dashLength = 20;
-            double gapLength = 20;
-
+        gc.setFill(Color.DARKGRAY); // Road color
+        gc.fillRect(x1 - WIDTH / 2, y1, WIDTH, y2 - y1); // Vertical road
+        gc.fillRect(x1, y1 - WIDTH / 2, x2 - x1, WIDTH); // Horizontal road
+    
+        // Add lane markings
+        gc.setStroke(Color.WHITE);
+        gc.setLineWidth(2);
+        double dashLength = 20;
+        double gapLength = 20;
+    
+        if (isHorizontal()) {
             for (double x = x1; x < x2; x += dashLength + gapLength) {
                 gc.strokeLine(x, y1, Math.min(x + dashLength, x2), y1);
             }
         } else {
-            // Vertical road
-            gc.fillRect(x1 - WIDTH/2, y1, WIDTH, y2 - y1);
-
-            // Draw road markings
-            gc.setStroke(Color.WHITE);
-            gc.setLineWidth(2);
-            double dashLength = 20;
-            double gapLength = 20;
-
             for (double y = y1; y < y2; y += dashLength + gapLength) {
                 gc.strokeLine(x1, y, x1, Math.min(y + dashLength, y2));
             }

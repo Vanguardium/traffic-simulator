@@ -10,14 +10,17 @@
   },
   "map": {
     "intersections": [
-      {"x": 200, "y": 150},
-      {"x": 600, "y": 150},
-      {"x": 200, "y": 450},
-      {"x": 600, "y": 450}
+      {"x": 325, "y": 225},
+      {"x": 900, "y": 225},
+      {"x": 325, "y": 525},
+      {"x": 900, "y": 525}
     ],
     "roadWidth": 40
   },
   "simulation": {
-    "trafficLightUpdateInterval": 1000
+    "trafficLightUpdateInterval": 1000,
+    "carSpeed": 2.0,
+    "carsPerRoad": 2,
+    "maxCars": 50
   }
 }
