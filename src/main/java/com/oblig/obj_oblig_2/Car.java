@@ -244,7 +244,7 @@ public class Car extends Thread{
             // If we're close enough to check the traffic light
             if (distance <= detectionRadius) {
                 // Get the relevant traffic light based on our direction
-                TrafficLight relevantLight = intersection.getTrafficLight(direction);
+                TrafficLight relevantLight = intersection.getTrafficLight(convertDirection());
     
                 // If the light is red or yellow, stop
                 if (relevantLight != null) {
@@ -362,6 +362,16 @@ public class Car extends Thread{
         }
     }
 
+    private TrafficLight.Direction convertDirection() {
+        switch (direction) {
+            case NORTH: return TrafficLight.Direction.NORTH;
+            case SOUTH: return TrafficLight.Direction.SOUTH;
+            case EAST: return TrafficLight.Direction.EAST;
+            case WEST: return TrafficLight.Direction.WEST;
+            default: return TrafficLight.Direction.NORTH;
+        }
+    }
 
-    // ... existing getters and setters ...
+
+
 }
