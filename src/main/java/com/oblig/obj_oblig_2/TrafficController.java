@@ -140,7 +140,39 @@ public class TrafficController {
     
     private void updateTrafficLights() {
         for (Intersection intersection : intersections) {
-            intersection.updateTrafficLights();
+            // Get all traffic lights at this intersection
+            List<TrafficLight> lights = intersection.getTrafficLights();
+
+            // First set all lights to red
+            for (TrafficLight light : lights) {
+                light.setState(TrafficLight.LightState.RED);
+            }
+
+            // Determine which directions should be green
+            int currentPhase = intersection.getCurrentGreenLightIndex();
+
+            // Phase 0: North-South green
+            // Phase 1: East-West green
+            if (currentPhase == 0) {
+                // Set North and South to green
+                for (TrafficLight light : lights) {
+                    if (light.getDirection() == TrafficLight.Direction.NORTH ||
+                            light.getDirection() == TrafficLight.Direction.SOUTH) {
+                        light.setState(TrafficLight.LightState.GREEN);
+                    }
+                }
+            } else {
+                // Set East and West to green
+                for (TrafficLight light : lights) {
+                    if (light.getDirection() == TrafficLight.Direction.EAST ||
+                            light.getDirection() == TrafficLight.Direction.WEST) {
+                        light.setState(TrafficLight.LightState.GREEN);
+                    }
+                }
+            }
+
+            // Toggle the phase for next update
+            intersection.toggleGreenLightIndex();
         }
     }
 

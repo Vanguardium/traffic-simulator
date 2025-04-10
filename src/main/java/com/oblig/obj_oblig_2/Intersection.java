@@ -92,4 +92,14 @@ public class Intersection {
     public List<TrafficLight> getTrafficLights() {
         return trafficLights;
     }
+
+    public void toggleGreenLightIndex() {
+        // Assuming just two phases (N-S and E-W)
+        currentGreenLightIndex = (currentGreenLightIndex + 1) % 2;
+    }
+
+    public int getCurrentGreenLightIndex() {
+        return currentGreenLightIndex;
+    }
 }
+

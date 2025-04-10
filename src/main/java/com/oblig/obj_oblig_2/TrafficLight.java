@@ -52,6 +52,10 @@ public class TrafficLight {
         return position;
     }
 
+    public Direction getDirection() {
+        return direction;
+    }
+
     public void draw(GraphicsContext gc) {
         Color lightColor;
         switch (state) {
