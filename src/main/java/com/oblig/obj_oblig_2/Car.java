@@ -14,9 +14,13 @@ public class Car extends Thread{
     private int detectionRadius;
     private int laneOffset; // Added to track the lane offset
     private List<Car> nearbyVehicles;
-    private double minSafeDistance;
+    private double minSafeDistance = ConfigLoader.getInstance().getMinCarDistance();
     private int size;
     private Intersection currentIntersection; // Tracks the intersection the car is currently in
+    private boolean hasPassedTrafficLight; // Tracks if the car has passed the traffic light
+    private boolean isInCooldown; // Tracks if the car is in a cooldown period after exiting an intersection
+    private long cooldownEndTime; // Tracks when the cooldown period ends
+    private static final long COOLDOWN_DURATION = 2000; // Cooldown duration in milliseconds
     
     public Car () {
         this.position = new Position(0,0);
@@ -101,14 +105,48 @@ public class Car extends Thread{
     }
 
     public void move() {
-        if(shouldStopForTrafficLight() || shouldStopForNearbyVehicle()){
-            return;
+        // Always check for nearby vehicles to avoid collision, regardless of cooldown or intersection
+        if (shouldStopForNearbyVehicle()) {
+            return; // Safety first - stop if we're about to hit another car
         }
-
+        
+        // If the car is in an intersection, it should not stop for traffic lights
+        if (currentIntersection == null) {
+            // Check if the car is in a cooldown period
+            if (isInCooldown) {
+                if (System.currentTimeMillis() < cooldownEndTime) {
+                    // During cooldown, the car should not stop for traffic lights
+                    moveInDirection();
+                    return;
+                } else {
+                    isInCooldown = false; // End cooldown
+                }
+            }
+        
+            // Stop if the car should stop for a traffic light
+            if (!hasPassedTrafficLight && shouldStopForTrafficLight()) {
+                return;
+            }
+        }
+        
+        // Check for potential collision with the traffic light
+        if (trafficLight != null && checkCollision(trafficLight)) {
+            return; // Stop the car to avoid collision
+        }
+        
+        // Update the flag if the car has passed the traffic light
+        if (trafficLight != null && hasCrossedTrafficLight()) {
+            hasPassedTrafficLight = true;
+        }
+        
         // Check if we're entering or exiting an intersection
         updateIntersectionStatus();
-
+        
         // Move the car in the direction it is facing
+        moveInDirection();
+    }
+
+    private void moveInDirection() {
         switch (direction) {
             case NORTH:
                 position.setY(position.getY() - speed);
@@ -128,6 +166,28 @@ public class Car extends Thread{
                 break;
         }
     }
+    
+
+    private boolean hasCrossedTrafficLight() {
+        if (trafficLight == null) {
+            return false;
+        }
+    
+        Position lightPosition = trafficLight.getPosition();
+        switch (direction) {
+            case NORTH:
+                return position.getY() < lightPosition.getY();
+            case SOUTH:
+                return position.getY() > lightPosition.getY();
+            case EAST:
+                return position.getX() > lightPosition.getX();
+            case WEST:
+                return position.getX() < lightPosition.getX();
+            default:
+                return false;
+        }
+    }
+
 
     // Update whether the car is in an intersection or not
     private void updateIntersectionStatus() {
@@ -135,14 +195,17 @@ public class Car extends Thread{
         if (currentIntersection != null) {
             if (!isInIntersection(currentIntersection)) {
                 currentIntersection = null; // Car has exited the intersection
+                isInCooldown = true; // Start cooldown period
+                cooldownEndTime = System.currentTimeMillis() + COOLDOWN_DURATION;
             }
             return;
         }
-        
+    
         // Check if we're entering any intersections
         for (Intersection intersection : intersections) {
             if (isInIntersection(intersection)) {
                 currentIntersection = intersection;
+                isInCooldown = false; // Reset cooldown when entering an intersection
                 break;
             }
         }
@@ -160,29 +223,29 @@ public class Car extends Thread{
                position.getY() <= intersectionPos.getY() + intersectionSize/2;
     }
 
-    private boolean shouldStopForTrafficLight(){
-        // If we're already in an intersection, don't stop for its traffic light
+    private boolean shouldStopForTrafficLight() {
+        // If the car is already in an intersection, it should not stop for its traffic light
         if (currentIntersection != null) {
             return false;
         }
-        
+    
         if (intersections == null || intersections.isEmpty()) {
             return false;
         }
-        
+    
         for (Intersection intersection : intersections) {
             Position intersectionPos = intersection.getPosition();
-            
+    
             // Calculate distance to intersection
             double dx = position.getX() - intersectionPos.getX();
             double dy = position.getY() - intersectionPos.getY();
-            double distance = Math.sqrt(dx*dx + dy*dy);
-            
+            double distance = Math.sqrt(dx * dx + dy * dy);
+    
             // If we're close enough to check the traffic light
             if (distance <= detectionRadius) {
                 // Get the relevant traffic light based on our direction
-                TrafficLight relevantLight = intersection.getTrafficLight(getOppositeDirection());
-                
+                TrafficLight relevantLight = intersection.getTrafficLight(direction);
+    
                 // If the light is red or yellow, stop
                 if (relevantLight != null) {
                     TrafficLight.LightState lightState = relevantLight.getLightState();
@@ -196,41 +259,20 @@ public class Car extends Thread{
         return false;
     }
     
-    private boolean shouldStopForNearbyVehicle() {
-        if (nearbyVehicles == null || nearbyVehicles.isEmpty()) {
-            return false;
-        }
-        
-        for (Car otherCar : nearbyVehicles) {
-            // Skip if it's this car or if it's on a different road
-            if (otherCar == this || otherCar.currentRoad != this.currentRoad) {
-                continue;
-            }
-            
-            // Skip if not going in the same direction
-            if (otherCar.direction != this.direction) {
-                continue;
-            }
-            
-            double distance = distanceBetween(this.position, otherCar.position);
-            
-            // Check if car is ahead of us based on direction
-            if (isAheadOf(otherCar) && distance < minSafeDistance) {
-                return true;
-            }
-        }
-        return false;
-    }
-    
     private boolean isAheadOf(Car otherCar) {
+        // Check if the other car is ahead of this car based on direction
         switch (direction) {
             case NORTH:
+                // When going north, a car with lower Y is ahead
                 return otherCar.position.getY() < position.getY();
             case SOUTH:
+                // When going south, a car with higher Y is ahead
                 return otherCar.position.getY() > position.getY();
             case EAST:
+                // When going east, a car with higher X is ahead
                 return otherCar.position.getX() > position.getX();
             case WEST:
+                // When going west, a car with lower X is ahead
                 return otherCar.position.getX() < position.getX();
             default:
                 return false;
@@ -262,6 +304,64 @@ public class Car extends Thread{
         // Consider collision if distance is less than 10 units
         return distance < 10;
     }
+
+    private boolean shouldStopForNearbyVehicle() {
+        if (nearbyVehicles == null || nearbyVehicles.isEmpty()) {
+            return false; // No nearby vehicles to check
+        }
+    
+        for (Car otherCar : nearbyVehicles) {
+            // Skip if it's the same car
+            if (otherCar == this) {
+                continue;
+            }
+    
+            // Skip if the cars are on different roads
+            if (otherCar.currentRoad != this.currentRoad) {
+                continue;
+            }
+    
+            // Check if cars are in the same lane by comparing their lane offsets
+            boolean sameLane = false;
+            if (direction == CarDirection.NORTH || direction == CarDirection.SOUTH) {
+                // For vertical roads, check if X positions are close
+                sameLane = Math.abs(otherCar.position.getX() - position.getX()) < 20;
+            } else {
+                // For horizontal roads, check if Y positions are close
+                sameLane = Math.abs(otherCar.position.getY() - position.getY()) < 20;
+            }
+    
+            if (!sameLane) {
+                continue; // Skip if not in the same lane
+            }
+    
+            // Calculate the distance between this car and the other car
+            double distance = distanceBetween(this.position, otherCar.position);
+    
+            // Check if the other car is ahead and within the minimum safe distance
+            if (isAheadOf(otherCar) && distance < minSafeDistance) {
+                return true; // Stop to avoid collision
+            }
+        }
+    
+        return false; // No need to stop
+    }
+
+    public void updateNearbyVehicles(List<Car> allCars) {
+        nearbyVehicles.clear();
+        // Use a larger detection radius specifically for cars (double the traffic light detection radius)
+        int carDetectionRadius = detectionRadius * 2; 
+        
+        for (Car otherCar : allCars) {
+            if (otherCar != this) {
+                double distance = distanceBetween(this.position, otherCar.position);
+                if (distance <= carDetectionRadius) {
+                    nearbyVehicles.add(otherCar);
+                }
+            }
+        }
+    }
+
 
     // ... existing getters and setters ...
 }

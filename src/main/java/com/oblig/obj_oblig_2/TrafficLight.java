@@ -68,10 +68,10 @@ public class TrafficLight {
             default:
                 lightColor = Color.RED;
         }
-
+    
         gc.setFill(lightColor);
-        gc.fillOval(position.getX() - SIZE/2, position.getY() - SIZE/2, SIZE, SIZE);
+        gc.fillOval(position.getX() - SIZE / 2, position.getY() - SIZE / 2, SIZE, SIZE);
         gc.setStroke(Color.BLACK);
-        gc.strokeOval(position.getX() - SIZE/2, position.getY() - SIZE/2, SIZE, SIZE);
+        gc.strokeOval(position.getX() - SIZE / 2, position.getY() - SIZE / 2, SIZE, SIZE);
     }
 }

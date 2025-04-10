@@ -95,4 +95,7 @@ public class ConfigLoader {
     public int getCarsPerRoad() {
         return config.path("simulation").path("carsPerRoad").asInt(2);
     }
+    public int getMaxCars() {
+        return config.path("simulation").path("maxCars").asInt(50); // Default maximum of 50 cars
+    }
 }

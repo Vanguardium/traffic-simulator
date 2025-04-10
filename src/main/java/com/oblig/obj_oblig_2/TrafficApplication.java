@@ -16,13 +16,18 @@ public class TrafficApplication extends Application {
         } catch (IOException e) {
             System.err.println("Failed to load configuration: " + e.getMessage());
         }
-
-        ConfigLoader config = ConfigLoader.getInstance();
-
+    
         FXMLLoader fxmlLoader = new FXMLLoader(TrafficApplication.class.getResource("traffic-view.fxml"));
-        Scene scene = new Scene(fxmlLoader.load(), config.getWindowWidth(), config.getWindowHeight());
+        Scene scene = new Scene(fxmlLoader.load(), 1200, 750); // Fixed size
         stage.setTitle("Traffic Simulation");
         stage.setScene(scene);
+    
+        // Disable resizing to enforce fixed size
+        stage.setResizable(false);
+    
+        // Center the application window on the screen
+        stage.centerOnScreen();
+    
         stage.show();
     }
 
