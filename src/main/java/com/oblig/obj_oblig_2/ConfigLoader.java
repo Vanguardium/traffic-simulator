@@ -52,6 +52,17 @@ public class ConfigLoader {
         return getCarSize() * 2;
     }
 
+    // Turning parameters
+    public int getTurningPathPoints() {
+        return config.path("car").path("turningPathPoints").asInt(30); // Increased from 20 to 30 for smoother curves
+    }
+    
+    public double getTurningSpeed() {
+        double baseSpeed = getCarSpeed();
+        double turningFactor = config.path("car").path("turningSpeedFactor").asDouble(0.6);
+        return baseSpeed * turningFactor; // Reduced from 0.8 to 0.6 for smoother turns
+    }
+
     // TrafficLight config
     public int getTrafficLightSize() {
         return config.path("trafficLight").path("size").asInt(15);
@@ -81,6 +92,11 @@ public class ConfigLoader {
 
     public int getRoadWidth() {
         return config.path("map").path("roadWidth").asInt(40);
+    }
+    
+    // Add intersection radius parameter (for turning calculations)
+    public int getIntersectionRadius() {
+        return config.path("map").path("intersectionRadius").asInt(30);
     }
 
     // Simulation config

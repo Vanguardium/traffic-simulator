@@ -10,6 +10,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.Random;
+import javafx.scene.transform.Rotate;
 
 public class TrafficController {
     @FXML
@@ -140,9 +141,41 @@ public class TrafficController {
         Position pos = car.getPosition();
         int carSize = car.getSize();
     
+        // Save the current state
+        gc.save();
+        
+        // Translate to car position
+        gc.translate(pos.getX(), pos.getY());
+        
+        // Rotate based on car direction
+        double rotationAngle = 0;
+        switch (car.getDirection()) {
+            case NORTH:
+                rotationAngle = 0;
+                break;
+            case EAST:
+                rotationAngle = 90;
+                break;
+            case SOUTH:
+                rotationAngle = 180;
+                break;
+            case WEST:
+                rotationAngle = 270;
+                break;
+        }
+        
+        gc.rotate(rotationAngle);
+        
         // Draw car body
-        gc.setFill(Color.RED); // Car color
-        gc.fillRect(pos.getX() - carSize / 2, pos.getY() - carSize / 2, carSize, carSize);
+        gc.setFill(Color.RED);
+        gc.fillRect(-carSize / 2, -carSize / 2, carSize, carSize);
+        
+        // Draw a small indicator for the front (optional)
+        gc.setFill(Color.BLACK);
+        gc.fillRect(-carSize / 4, -carSize / 2, carSize / 2, carSize / 4);
+        
+        // Restore the original state
+        gc.restore();
     }
     
     private void updateTrafficLights() {

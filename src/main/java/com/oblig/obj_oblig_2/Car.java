@@ -3,6 +3,10 @@ package com.oblig.obj_oblig_2;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
+import java.util.PriorityQueue;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Comparator;
 
 public class Car extends Thread {
     private Position position;
@@ -25,6 +29,11 @@ public class Car extends Thread {
     private boolean turningInProgress = false;
     private CarDirection targetDirection = null;
     private final Object positionLock = new Object();
+    
+    // Path planning for turning
+    private List<Position> turningPath;
+    private int currentPathIndex;
+    private boolean isFollowingPath;
 
     public Car() {
         this.position = new Position(0, 0);
@@ -37,6 +46,9 @@ public class Car extends Thread {
         this.size = ConfigLoader.getInstance().getCarSize();
         this.minSafeDistance = ConfigLoader.getInstance().getMinCarDistance();
         this.currentIntersection = null;
+        this.turningPath = new ArrayList<>();
+        this.currentPathIndex = 0;
+        this.isFollowingPath = false;
     }
 
     public Car(Position position, double speed, CarDirection direction, TrafficLight trafficLight) {
@@ -51,6 +63,9 @@ public class Car extends Thread {
         this.size = ConfigLoader.getInstance().getCarSize();
         this.minSafeDistance = ConfigLoader.getInstance().getMinCarDistance();
         this.currentIntersection = null;
+        this.turningPath = new ArrayList<>();
+        this.currentPathIndex = 0;
+        this.isFollowingPath = false;
     }
 
     private int calculateLaneOffset() {
@@ -162,35 +177,14 @@ public class Car extends Thread {
                         Math.pow(position.getY() - intersectionPos.getY(), 2)
         );
 
-        // Step 1: Approach center until we're close enough to turn
-        if (!turningInProgress && distanceToCenter > 5) {
-            // Keep heading toward center at reduced speed
-            double moveSpeed = Math.min(speed * 0.75, distanceToCenter);
-
-            // Calculate normalized direction vector toward intersection center
-            double dx = intersectionPos.getX() - position.getX();
-            double dy = intersectionPos.getY() - position.getY();
-            double length = Math.sqrt(dx * dx + dy * dy);
-
-            // Move toward center using vector
-            if (length > 0) {
-                position.setX(position.getX() + (dx / length) * moveSpeed);
-                position.setY(position.getY() + (dy / length) * moveSpeed);
-            }
-            return;
-        }
-
-        // Step 2: Prepare to turn when very close to center
-        if (!turningInProgress && distanceToCenter <= 5) {
+        // Step 1: Generate turning path on first entry into intersection
+        if (!turningInProgress && !isFollowingPath) {
             turningInProgress = true;
-            // Move exactly to center for clean turn
-            position.setX(intersectionPos.getX());
-            position.setY(intersectionPos.getY());
-
+            
             // Choose random direction (not current and not opposite)
             List<CarDirection> validDirections = new ArrayList<>();
             for (CarDirection dir : CarDirection.values()) {
-                if (dir != direction && dir != getOppositeDirection()) {
+                if (dir != direction && dir != getOppositeDirection(direction)) {
                     validDirections.add(dir);
                 }
             }
@@ -199,51 +193,164 @@ public class Car extends Thread {
                 Random random = new Random();
                 targetDirection = validDirections.get(random.nextInt(validDirections.size()));
                 System.out.println("Preparing to turn from " + direction + " to " + targetDirection);
+                
+                // Generate turning path - directly from entry to exit point
+                generateDirectTurningPath(direction, targetDirection, intersectionPos);
+                isFollowingPath = true;
+                currentPathIndex = 0;
+                
+                // Use a slower turning speed from config
+                speed = ConfigLoader.getInstance().getTurningSpeed();
             } else {
                 // Fallback - continue straight
                 targetDirection = direction;
+                exitIntersection();
             }
             return;
         }
 
-        // Step 3: Execute turn and find appropriate road
-        if (turningInProgress) {
-            // Change direction and update lane offset
-            setDirection(targetDirection);
-            System.out.println("Executing turn to " + targetDirection);
-
-            // Find best matching road with improved algorithm
-            Road bestRoad = null;
-            for (Road road : getRoadsFromSimulation()) {
-                // Only check roads that match our direction
-                if ((direction == CarDirection.NORTH || direction == CarDirection.SOUTH) &&
-                        road.isVertical()) {
-                    double xDiff = Math.abs(road.getX1() - intersectionPos.getX());
-                    if (xDiff < 30) { // Allow for some tolerance
-                        bestRoad = road;
-                        break; // Take the first good match
-                    }
-                }
-                else if ((direction == CarDirection.EAST || direction == CarDirection.WEST) &&
-                        road.isHorizontal()) {
-                    double yDiff = Math.abs(road.getY1() - intersectionPos.getY());
-                    if (yDiff < 30) { // Allow for some tolerance
-                        bestRoad = road;
-                        break; // Take the first good match
-                    }
-                }
-            }
-
-            // Set new road and position car properly outside the intersection
-            if (bestRoad != null) {
-                currentRoad = bestRoad;
-                exitIntersectionToRoad(bestRoad, intersectionPos);
-                System.out.println("Found matching road after turn");
+        // Step 2: Follow the turning path
+        if (isFollowingPath && currentPathIndex < turningPath.size()) {
+            // Move to the next point on the path
+            Position nextPoint = turningPath.get(currentPathIndex);
+            
+            // Calculate direction to next point
+            double dx = nextPoint.getX() - position.getX();
+            double dy = nextPoint.getY() - position.getY();
+            double distanceToPoint = Math.sqrt(dx * dx + dy * dy);
+            
+            if (distanceToPoint < speed) {
+                // We've reached or can surpass this point in this step
+                position.setX(nextPoint.getX());
+                position.setY(nextPoint.getY());
+                currentPathIndex++;
             } else {
-                // Emergency exit - use map coordinates
-                emergencyExitIntersection(intersectionPos);
-                System.out.println("No matching road - using emergency exit");
+                // Move toward the point at our current speed
+                position.setX(position.getX() + (dx / distanceToPoint) * speed);
+                position.setY(position.getY() + (dy / distanceToPoint) * speed);
             }
+            
+            // Check if we've reached the end of the path
+            if (currentPathIndex >= turningPath.size()) {
+                // Find matching road and finalize the turn
+                setDirection(targetDirection);
+                Road bestRoad = findMatchingRoad(targetDirection, intersectionPos);
+                if (bestRoad != null) {
+                    currentRoad = bestRoad;
+                    adjustFinalPositionOnRoad(bestRoad);
+                } else {
+                    emergencyExitIntersection(intersectionPos);
+                }
+                
+                // Reset path following and restore normal speed
+                isFollowingPath = false;
+                turningPath.clear();
+                speed = ConfigLoader.getInstance().getCarSpeed(); // Restore normal speed
+                exitIntersection();
+            }
+            return;
+        }
+    }
+    
+    private void generateDirectTurningPath(CarDirection fromDirection, CarDirection toDirection, Position center) {
+        turningPath.clear();
+        
+        int intersectionRadius = ConfigLoader.getInstance().getIntersectionRadius();
+        int roadWidth = ConfigLoader.getInstance().getRoadWidth();
+        
+        // Calculate entry and exit points of the intersection
+        // These will be at the edges of the intersection, not in the center
+        Position entryPoint = calculateIntersectionEntryPoint(center, fromDirection, intersectionRadius);
+        Position exitPoint = calculateIntersectionExitPoint(center, toDirection, intersectionRadius);
+        
+        // Add current position as first point
+        turningPath.add(new Position(position.getX(), position.getY()));
+        
+        // Determine control points for a smooth curve without going to center
+        Position controlPoint1, controlPoint2;
+        
+        // For a smooth turn, control points should be positioned along the path
+        // but shifted to create a natural arc without going through the center
+        
+        // First control point - from entry point in the entry direction
+        controlPoint1 = createControlPoint(entryPoint, fromDirection, intersectionRadius * 0.6);
+        
+        // Second control point - from exit point in the opposite of exit direction
+        controlPoint2 = createControlPoint(exitPoint, getOppositeDirection(toDirection), intersectionRadius * 0.6);
+        
+        // Generate points along the Bezier curve
+        int numPoints = ConfigLoader.getInstance().getTurningPathPoints(); 
+        for (int i = 1; i <= numPoints; i++) {
+            double t = i / (double) numPoints;
+            
+            // Cubic Bezier formula: B(t) = (1-t)³P₀ + 3(1-t)²tP₁ + 3(1-t)t²P₂ + t³P₃
+            double x = bezierPoint(t, entryPoint.getX(), controlPoint1.getX(), controlPoint2.getX(), exitPoint.getX());
+            double y = bezierPoint(t, entryPoint.getY(), controlPoint1.getY(), controlPoint2.getY(), exitPoint.getY());
+            
+            turningPath.add(new Position(x, y));
+        }
+    }
+    
+    private Position createControlPoint(Position basePoint, CarDirection direction, double distance) {
+        double x = basePoint.getX();
+        double y = basePoint.getY();
+        
+        switch (direction) {
+            case NORTH: return new Position(x, y - distance);
+            case SOUTH: return new Position(x, y + distance);
+            case EAST: return new Position(x + distance, y);
+            case WEST: return new Position(x - distance, y);
+            default: return new Position(x, y);
+        }
+    }
+    
+    private Position calculateIntersectionEntryPoint(Position center, CarDirection direction, int radius) {
+        // Adjust entry point based on lane offset to keep cars in their proper lane
+        double adjustedRadius = radius * 0.9; // Slightly inside the intersection edge
+        
+        switch (direction) {
+            case NORTH: return new Position(center.getX() + laneOffset, center.getY() + adjustedRadius);
+            case SOUTH: return new Position(center.getX() + laneOffset, center.getY() - adjustedRadius);
+            case EAST: return new Position(center.getX() - adjustedRadius, center.getY() + laneOffset);
+            case WEST: return new Position(center.getX() + adjustedRadius, center.getY() + laneOffset);
+            default: return new Position(center.getX(), center.getY());
+        }
+    }
+    
+    private Position calculateIntersectionExitPoint(Position center, CarDirection direction, int radius) {
+        // Calculate where the car should exit, taking into account proper lane placement
+        double adjustedRadius = radius * 0.9; // Slightly inside the intersection edge
+        int laneOffset = calculateLaneOffset(direction);
+        
+        switch (direction) {
+            case NORTH: return new Position(center.getX() + laneOffset, center.getY() - adjustedRadius);
+            case SOUTH: return new Position(center.getX() + laneOffset, center.getY() + adjustedRadius);
+            case EAST: return new Position(center.getX() + adjustedRadius, center.getY() + laneOffset);
+            case WEST: return new Position(center.getX() - adjustedRadius, center.getY() + laneOffset);
+            default: return new Position(center.getX(), center.getY());
+        }
+    }
+    
+    // Calculate lane offset for a specific direction (helpful for exit point calculations)
+    private int calculateLaneOffset(CarDirection dir) {
+        int roadWidth = ConfigLoader.getInstance().getRoadWidth();
+        int laneWidth = roadWidth / 2;
+
+        switch (dir) {
+            case NORTH: return laneWidth/2;   // RIGHT side of road
+            case SOUTH: return -laneWidth/2;  // LEFT side of road
+            case EAST: return laneWidth/2;    // BOTTOM side of road
+            case WEST: return -laneWidth/2;   // TOP side of road
+            default: return 0;
+        }
+    }
+
+    private void adjustFinalPositionOnRoad(Road road) {
+        // Place the car correctly on the destination road with proper lane offset
+        if (targetDirection == CarDirection.NORTH || targetDirection == CarDirection.SOUTH) {
+            position.setX(road.getX1() + laneOffset);
+        } else { // EAST or WEST
+            position.setY(road.getY1() + laneOffset);
         }
     }
 
@@ -472,6 +579,16 @@ public class Car extends Thread {
         }
     }
 
+    private CarDirection getOppositeDirection(CarDirection dir) {
+        switch (dir) {
+            case NORTH: return CarDirection.SOUTH;
+            case SOUTH: return CarDirection.NORTH;
+            case EAST: return CarDirection.WEST;
+            case WEST: return CarDirection.EAST;
+            default: return dir;
+        }
+    }
+
     private boolean shouldStopForNearbyVehicle() {
         if (nearbyVehicles == null || nearbyVehicles.isEmpty()) {
             return false;
@@ -549,4 +666,54 @@ public class Car extends Thread {
         );
     }
 
+    private double bezierPoint(double t, double p0, double p1, double p2, double p3) {
+        double mt = 1 - t;
+        return mt * mt * mt * p0 + 3 * mt * mt * t * p1 + 3 * mt * t * t * p2 + t * t * t * p3;
+    }
+    
+    private Road findMatchingRoad(CarDirection direction, Position intersectionPos) {
+        // Get all roads from simulation
+        List<Road> allRoads = getRoadsFromSimulation();
+        if (allRoads.isEmpty()) {
+            return null; // No roads available
+        }
+        
+        Road bestRoad = null;
+        double bestDistance = Double.MAX_VALUE;
+        
+        // Find a road that matches the target direction and is closest to the intersection
+        for (Road road : allRoads) {
+            // For NORTH/SOUTH, we need a vertical road
+            // For EAST/WEST, we need a horizontal road
+            boolean isDirectionCompatible = false;
+            
+            if ((direction == CarDirection.NORTH || direction == CarDirection.SOUTH) && road.isVertical()) {
+                isDirectionCompatible = true;
+            } else if ((direction == CarDirection.EAST || direction == CarDirection.WEST) && road.isHorizontal()) {
+                isDirectionCompatible = true;
+            }
+            
+            if (isDirectionCompatible) {
+                // Calculate how close this road passes to the intersection
+                double distance;
+                if (road.isHorizontal()) {
+                    // For horizontal roads, check vertical distance
+                    distance = Math.abs(road.getY1() - intersectionPos.getY());
+                } else {
+                    // For vertical roads, check horizontal distance
+                    distance = Math.abs(road.getX1() - intersectionPos.getX());
+                }
+                
+                // If this road is closer to the intersection than previous best match
+                if (distance < bestDistance) {
+                    bestRoad = road;
+                    bestDistance = distance;
+                }
+            }
+        }
+        
+        return bestRoad;
+    }
+
 }
+

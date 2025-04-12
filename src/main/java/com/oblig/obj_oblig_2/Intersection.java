@@ -11,7 +11,7 @@ public class Intersection {
     private List<TrafficLight> trafficLights;
     private Map<TrafficLight.Direction, TrafficLight> lightMap;
     private Position position;
-    private final int SIZE = 60;
+    private final int SIZE = ConfigLoader.getInstance().getIntersectionRadius() * 2; // Use configurable radius
     private int currentGreenLightIndex = 0;
 
     public Intersection(double x, double y) {
@@ -101,5 +101,39 @@ public class Intersection {
     public int getCurrentGreenLightIndex() {
         return currentGreenLightIndex;
     }
-}
 
+    // Helper method to get the radius of the intersection
+    public int getRadius() {
+        return SIZE / 2;
+    }
+    
+    // Get all roads connected to this intersection (to be used in path planning)
+    public List<Road> getConnectedRoads(List<Road> allRoads) {
+        List<Road> connectedRoads = new ArrayList<>();
+        
+        for (Road road : allRoads) {
+            // Check if this road passes through the intersection
+            if (road.isHorizontal()) {
+                double x1 = road.getX1();
+                double x2 = road.getX2();
+                double y = road.getY1();
+                
+                if (x1 <= position.getX() && position.getX() <= x2 && 
+                    Math.abs(position.getY() - y) < SIZE / 2) {
+                    connectedRoads.add(road);
+                }
+            } else if (road.isVertical()) {
+                double y1 = road.getY1();
+                double y2 = road.getY2();
+                double x = road.getX1();
+                
+                if (y1 <= position.getY() && position.getY() <= y2 && 
+                    Math.abs(position.getX() - x) < SIZE / 2) {
+                    connectedRoads.add(road);
+                }
+            }
+        }
+        
+        return connectedRoads;
+    }
+}
