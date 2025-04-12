@@ -63,6 +63,11 @@ public class ConfigLoader {
         return baseSpeed * turningFactor; // Reduced from 0.8 to 0.6 for smoother turns
     }
 
+
+    public double getStraightThroughProbability() {
+        return config.path("car").path("straightThroughProbability").asDouble(0.6);
+    }
+
     // TrafficLight config
     public int getTrafficLightSize() {
         return config.path("trafficLight").path("size").asInt(15);

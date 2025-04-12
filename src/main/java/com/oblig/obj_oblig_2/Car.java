@@ -181,8 +181,13 @@ public class Car extends Thread {
         if (!turningInProgress && !isFollowingPath) {
             turningInProgress = true;
             
-            // Choose random direction (not current and not opposite)
+            // Choose a direction: current (straight) or turning
             List<CarDirection> validDirections = new ArrayList<>();
+            
+            // Add current direction (going straight) as a valid option
+            validDirections.add(direction);
+            
+            // Add turning options (not opposite direction)
             for (CarDirection dir : CarDirection.values()) {
                 if (dir != direction && dir != getOppositeDirection(direction)) {
                     validDirections.add(dir);
@@ -191,16 +196,46 @@ public class Car extends Thread {
 
             if (!validDirections.isEmpty()) {
                 Random random = new Random();
-                targetDirection = validDirections.get(random.nextInt(validDirections.size()));
-                System.out.println("Preparing to turn from " + direction + " to " + targetDirection);
                 
-                // Generate turning path - directly from entry to exit point
-                generateDirectTurningPath(direction, targetDirection, intersectionPos);
+                // Set probabilities: higher chance to go straight
+                double goStraightProbability = 0.6; // 60% chance to go straight
+                
+                if (random.nextDouble() < goStraightProbability && validDirections.contains(direction)) {
+                    // Go straight (keep current direction)
+                    targetDirection = direction;
+                    System.out.println("Car continuing straight through intersection in direction: " + direction);
+                    
+                    // For going straight, we can use a simplified path
+                    generateStraightPath(direction, intersectionPos);
+                } else {
+                    // Choose a random turning direction (exclude current direction)
+                    List<CarDirection> turningOptions = new ArrayList<>(validDirections);
+                    turningOptions.remove(direction); // Remove straight option
+                    
+                    if (!turningOptions.isEmpty()) {
+                        targetDirection = turningOptions.get(random.nextInt(turningOptions.size()));
+                        System.out.println("Preparing to turn from " + direction + " to " + targetDirection);
+                        
+                        // Generate turning path - directly from entry to exit point
+                        generateDirectTurningPath(direction, targetDirection, intersectionPos);
+                    } else {
+                        // Fallback - continue straight
+                        targetDirection = direction;
+                        generateStraightPath(direction, intersectionPos);
+                    }
+                }
+                
                 isFollowingPath = true;
                 currentPathIndex = 0;
                 
-                // Use a slower turning speed from config
-                speed = ConfigLoader.getInstance().getTurningSpeed();
+                // Adjust speed based on whether going straight or turning
+                if (targetDirection == direction) {
+                    // Maintain normal speed when going straight
+                    speed = ConfigLoader.getInstance().getCarSpeed();
+                } else {
+                    // Slow down for turns
+                    speed = ConfigLoader.getInstance().getTurningSpeed();
+                }
             } else {
                 // Fallback - continue straight
                 targetDirection = direction;
@@ -252,6 +287,21 @@ public class Car extends Thread {
         }
     }
     
+    // Add new method for generating a straight path through intersection
+    private void generateStraightPath(CarDirection travelDirection, Position center) {
+        turningPath.clear();
+        
+        int intersectionRadius = ConfigLoader.getInstance().getIntersectionRadius();
+        
+        // Calculate entry and exit points of the intersection
+        Position entryPoint = calculateIntersectionEntryPoint(center, travelDirection, intersectionRadius);
+        Position exitPoint = calculateIntersectionExitPoint(center, travelDirection, intersectionRadius);
+        
+        // For going straight, we just need entry, exit, and maybe one point in between
+        turningPath.add(new Position(position.getX(), position.getY()));
+        turningPath.add(exitPoint);
+    }
+
     private void generateDirectTurningPath(CarDirection fromDirection, CarDirection toDirection, Position center) {
         turningPath.clear();
         
