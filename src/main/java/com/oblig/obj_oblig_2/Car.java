@@ -473,8 +473,46 @@ public class Car extends Thread {
     }
 
     private boolean shouldStopForNearbyVehicle() {
-        // Implementation retained from original code
-        return false; // Placeholder
+        if (nearbyVehicles == null || nearbyVehicles.isEmpty()) {
+            return false;
+        }
+
+        for (Car otherCar : nearbyVehicles) {
+            if (otherCar == this) continue; // Skip self
+
+            // Only consider cars on the same road and in same direction
+            if (currentRoad != otherCar.currentRoad || direction != otherCar.getDirection()) {
+                continue;
+            }
+
+            // Check if car is ahead of us based on direction
+            Position otherPos = otherCar.getPosition();
+            boolean isAhead = false;
+
+            switch (direction) {
+                case NORTH:
+                    isAhead = otherPos.getY() < position.getY();
+                    break;
+                case SOUTH:
+                    isAhead = otherPos.getY() > position.getY();
+                    break;
+                case EAST:
+                    isAhead = otherPos.getX() > position.getX();
+                    break;
+                case WEST:
+                    isAhead = otherPos.getX() < position.getX();
+                    break;
+            }
+
+            if (isAhead) {
+                double distance = distanceTo(otherPos);
+                if (distance < minSafeDistance) {
+                    return true; // Stop if too close
+                }
+            }
+        }
+
+        return false;
     }
 
     public void setSimulation(Simulation simulation) {
