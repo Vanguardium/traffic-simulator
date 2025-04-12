@@ -222,50 +222,52 @@ public class TrafficController {
             createCarsForDirection(road, carsForThisRoad, baseCarSpeed, canvasWidth, canvasHeight, roadWidth);
         }
     }
-    
+
     private void createCarsForDirection(Road road, int carsPerRoad, double baseCarSpeed, double canvasWidth, double canvasHeight, int roadWidth) {
+        Car car = new Car();
+        car.setSimulation(simulation);
         int laneWidth = roadWidth / 2;
         ConfigLoader config = ConfigLoader.getInstance();
-        double minSpacing = config.getMinCarDistance() * 3; // Make initial spacing much larger than minimum safe distance
-        
+        double minSpacing = config.getMinCarDistance() * 3;
+
         // Create cars for both directions
-        for (int direction = 0; direction < 2; direction++) {
-            boolean goingPositive = (direction == 0); // Alternate direction
-            
+        for (int dir = 0; dir < 2; dir++) {
+            boolean goingPositive = (dir == 0); // Alternate direction
+
             for (int i = 0; i < carsPerRoad; i++) {
                 Position startPos;
-                CarDirection carDirection;
-                
+                CarDirection carDirection; // Declare a single variable for direction
+
                 // Randomize spacing between cars (wider variation)
-                int spacing = (int)minSpacing + random.nextInt(150);
-                
+                int spacing = (int) minSpacing + random.nextInt(150);
+
                 // Randomize car speed (-15% to +15% of base speed)
                 double speedVariation = 0.85 + (random.nextDouble() * 0.30);
                 double carSpeed = baseCarSpeed * speedVariation;
-                
+
                 if (road.isHorizontal()) {
                     if (goingPositive) {
-                        // East-bound cars on south side (right lane)
+                        // East-bound - should be on the BOTTOM half of horizontal road
                         carDirection = CarDirection.EAST;
-                        startPos = new Position(-50 - spacing * i, road.getY1() + laneWidth/2);
+                        startPos = new Position(-50 - random.nextInt(50), road.getY1() + (double) laneWidth/2);
                     } else {
-                        // West-bound cars on north side (right lane)
+                        // West-bound - should be on the TOP half of horizontal road
                         carDirection = CarDirection.WEST;
-                        startPos = new Position(canvasWidth + 50 + spacing * i, road.getY1() - laneWidth/2);
+                        startPos = new Position(canvasWidth + 50 + random.nextInt(50), road.getY1() - (double) laneWidth/2);
                     }
                 } else { // Vertical road
                     if (goingPositive) {
-                        // South-bound cars on east side (right lane)
+                        // South-bound - should be on the LEFT half of vertical road
                         carDirection = CarDirection.SOUTH;
-                        startPos = new Position(road.getX1() + laneWidth/2, -50 - spacing * i);
+                        startPos = new Position(road.getX1() - (double) laneWidth/2, -50 - spacing * i);
                     } else {
-                        // North-bound cars on west side (right lane)
+                        // North-bound - should be on the RIGHT half of vertical road
                         carDirection = CarDirection.NORTH;
-                        startPos = new Position(road.getX1() - laneWidth/2, canvasHeight + 50 + spacing * i);
+                        startPos = new Position(road.getX1() + (double) laneWidth/2, canvasHeight + 50 + spacing * i);
                     }
                 }
-                
-                Car car = new Car(startPos, carSpeed, carDirection, null);
+
+                car = new Car(startPos, carSpeed, carDirection, null);
                 car.setCurrentRoad(road);
                 car.setIntersections(intersections);
                 simulation.addCar(car);
@@ -305,27 +307,28 @@ public class TrafficController {
     
     private void spawnNewCars() {
         if (roads.isEmpty()) return;
-        
+        Car car = new Car();
+        car.setSimulation(simulation);
         // Get the current number of cars
         int currentCarCount = simulation.getCars().size();
-        
+
         // Calculate how many more cars we can add
         int availableSlots = maxCars - currentCarCount;
         if (availableSlots <= 0) return; // Can't add more cars
-        
+
         // Limited number of new cars to add
         int newCarsToAdd = Math.min(3, availableSlots); // Add at most 3 new cars at once
-        
+
         ConfigLoader config = ConfigLoader.getInstance();
         double baseCarSpeed = config.getCarSpeed();
         double canvasWidth = trafficCanvas.getWidth();
         double canvasHeight = trafficCanvas.getHeight();
         int roadWidth = config.getRoadWidth();
         int laneWidth = roadWidth / 2;
-        
+
         // Random number of roads to spawn cars on (1-3)
         int roadsToUse = 1 + random.nextInt(3);
-        
+
         // Select distinct roads to avoid spawning multiple cars on the same road
         Set<Integer> selectedRoadIndices = new HashSet<>();
         for (int r = 0; r < roadsToUse && r < roads.size(); r++) {
@@ -336,16 +339,16 @@ public class TrafficController {
                 roadIndex = random.nextInt(roads.size());
                 attempts++;
             } while (selectedRoadIndices.contains(roadIndex) && attempts < 10);
-            
+
             selectedRoadIndices.add(roadIndex);
             Road road = roads.get(roadIndex);
-            
+
             // Random chance to spawn in one or both directions
             int directionCount = random.nextDouble() < 0.7 ? 1 : 2; // 70% chance for 1 direction, 30% for both
-            
+
             // Initialize goingPositive before the loop
             boolean goingPositive = random.nextBoolean();
-            
+
             for (int d = 0; d < directionCount; d++) {
                 if (d == 0) {
                     // Keep the initial random value for first direction
@@ -353,41 +356,41 @@ public class TrafficController {
                     // Flip the direction for the second car
                     goingPositive = !goingPositive;
                 }
-                
+
                 // Randomize car speed (-20% to +20% of base speed)
                 double speedVariation = 0.80 + (random.nextDouble() * 0.40);
                 double carSpeed = baseCarSpeed * speedVariation;
-                
+
                 Position startPos;
                 CarDirection direction;
-                
+
                 if (road.isHorizontal()) {
                     if (goingPositive) {
-                        // East-bound on south side
+                        // East-bound - should be on the BOTTOM half of horizontal road
                         direction = CarDirection.EAST;
-                        startPos = new Position(-50 - random.nextInt(50), road.getY1() + laneWidth/2);
+                        startPos = new Position(-50 - random.nextInt(50), road.getY1() + (double) laneWidth/2);
                     } else {
-                        // West-bound on north side
+                        // West-bound - should be on the TOP half of horizontal road
                         direction = CarDirection.WEST;
-                        startPos = new Position(canvasWidth + 50 + random.nextInt(50), road.getY1() - laneWidth/2);
+                        startPos = new Position(canvasWidth + 50 + random.nextInt(50), road.getY1() - (double) laneWidth/2);
                     }
                 } else { // Vertical road
                     if (goingPositive) {
-                        // South-bound on east side
+                        // South-bound - should be on the LEFT half of vertical road
                         direction = CarDirection.SOUTH;
-                        startPos = new Position(road.getX1() + laneWidth/2, -50 - random.nextInt(50));
+                        startPos = new Position(road.getX1() - (double) laneWidth/2, -50 - random.nextInt(50));
                     } else {
-                        // North-bound on west side
+                        // North-bound - should be on the RIGHT half of vertical road
                         direction = CarDirection.NORTH;
-                        startPos = new Position(road.getX1() - laneWidth/2, canvasHeight + 50 + random.nextInt(50));
+                        startPos = new Position(road.getX1() + (double) laneWidth/2, canvasHeight + 50 + random.nextInt(50));
                     }
                 }
-                
-                Car car = new Car(startPos, carSpeed, direction, null);
+
+                car = new Car(startPos, carSpeed, direction, null);
                 car.setCurrentRoad(road);
                 car.setIntersections(intersections);
                 simulation.addCar(car);
-                
+
                 // If simulation is running, start the car thread
                 if (simulationRunning) {
                     car.start();
