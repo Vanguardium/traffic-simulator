@@ -6,7 +6,9 @@
   },
   "trafficLight": {
     "size": 15,
-    "offset": 25
+    "offset": 25,
+    "minGreenLightDuration": 1000,
+    "maxGreenLightDuration": 5000
   },
   "map": {
     "intersections": [
@@ -15,12 +17,16 @@
       {"x": 325, "y": 525},
       {"x": 900, "y": 525}
     ],
-    "roadWidth": 40
+    "roadWidth": 40,
+    "intersectionRadius": 30
   },
   "simulation": {
-    "trafficLightUpdateInterval": 1000,
+    "trafficLightUpdateInterval": 2000,
     "carSpeed": 2.0,
     "carsPerRoad": 2,
-    "maxCars": 50
+    "maxCars": 50,
+    "minGreenLightDuration": 1000,
+    "maxGreenLightDuration": 5000,
+    "carsPerTimeUnit": 2
   }
 }

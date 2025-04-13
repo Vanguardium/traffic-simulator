@@ -139,4 +139,24 @@ public class ConfigLoader {
     public double getCurrentCarSpeed() {
         return currentCarSpeed != 0 ? currentCarSpeed : getCarSpeed();
     }
+
+    // Fix these methods to use the proper section structure
+    public long getMinGreenLightDuration() {
+        return config.path("simulation").path("minGreenLightDuration").asLong(3000); // Default 3 seconds
+    }
+
+    public long getMaxGreenLightDuration() {
+        return config.path("simulation").path("maxGreenLightDuration").asLong(15000); // Default 15 seconds
+    }
+
+    public int getCarsPerTimeUnit() {
+        return config.path("simulation").path("carsPerTimeUnit").asInt(3); // Default 5 cars per time unit
+    }
+
+    private int getConfigInt(String key, int defaultValue) {
+        if (config.has(key)) {
+            return config.path(key).asInt(defaultValue);
+        }
+        return defaultValue;
+    }
 }

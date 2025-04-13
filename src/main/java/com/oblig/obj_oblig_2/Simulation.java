@@ -8,50 +8,33 @@ public class Simulation {
     private List<Intersection> intersections;
     private List<Road> roads;
     private List<Car> cars;
-    private int simSpeed;
     private boolean isRunning;
 
     public Simulation() {
         this.intersections = new ArrayList<>();
         this.roads = new ArrayList<>();
         this.cars = new ArrayList<>();
-        this.simSpeed = 1;
         this.isRunning = false;
     }
 
     public void start() {
-        if (!isRunning) {
-            isRunning = true;
-            for (Car car : cars) {
-                if (!car.isAlive()) {
-                    car.start();
-                }
-            }
-        }
+        isRunning = true;
     }
 
     public void stop() {
         isRunning = false;
-        for (Car car : cars) {
-            car.interrupt();
-        }
     }
 
-    public void reset() {
-        stop();
-        // Reset traffic lights
+    public void update() {
+        // Update each intersection independently
         for (Intersection intersection : intersections) {
-            intersection.resetTrafficLights();
+            intersection.updateTrafficLights();
         }
-        // Reset cars to their starting positions
-        cars.clear();
-    }
 
-    public void addCar(Car car) {
-        cars.add(car);
-        
-        // Make sure new car is aware of other cars
-        car.setNearbyVehicles(cars);
+        // Update cars
+        for (Car car : cars) {
+            car.move();
+        }
     }
 
     public void addIntersection(Intersection intersection) {
@@ -62,8 +45,8 @@ public class Simulation {
         roads.add(road);
     }
 
-    public List<Car> getCars() {
-        return cars;
+    public void addCar(Car car) {
+        cars.add(car);
     }
 
     public List<Intersection> getIntersections() {
@@ -74,11 +57,31 @@ public class Simulation {
         return roads;
     }
 
-    public int getSimSpeed() {
-        return simSpeed;
+    public List<Car> getCars() {
+        return cars;
     }
 
-    public void setSimSpeed(int simSpeed) {
-        this.simSpeed = simSpeed;
+    private void createRoadsFromIntersections(double canvasWidth, double canvasHeight) {
+        for (Intersection intersection : this.intersections) {
+            Position pos = intersection.getPosition();
+
+            // Create independent roads for each intersection
+            Road horizontalRoad = new Road(0, pos.getY(), canvasWidth, pos.getY());
+            Road verticalRoad = new Road(pos.getX(), 0, pos.getX(), canvasHeight);
+
+            this.addRoad(horizontalRoad);
+            this.addRoad(verticalRoad);
+        }
+    }
+    
+    public void initialize() {
+        // Initialize intersections, roads, and cars here
+        // Example:
+        Intersection intersection = new Intersection(400, 300);
+        intersection.setupTrafficLights();
+        this.addIntersection(intersection);
+
+        // Create roads from intersections
+        this.createRoadsFromIntersections(1200, 800); // Replace with actual canvas dimensions
     }
 }

@@ -7,8 +7,12 @@ import java.util.PriorityQueue;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Comparator;
+import javafx.scene.paint.Color;
 
 public class Car extends Thread {
+    // Add this field to store the car's color
+    private Color color;
+    
     private Position position;
     private double speed;
     private CarDirection direction;
@@ -30,6 +34,9 @@ public class Car extends Thread {
     private CarDirection targetDirection = null;
     private final Object positionLock = new Object();
     
+    // Add Random object for all methods that need randomness
+    private final Random random = new Random();
+    
     // Path planning for turning
     private List<Position> turningPath;
     private int currentPathIndex;
@@ -37,6 +44,10 @@ public class Car extends Thread {
 
     // Add a new field to store the original speed
     private double originalSpeed;
+
+    // Add a variable to track when the car entered an intersection
+    private long intersectionEntryTime;
+    private static final long MAX_INTERSECTION_TIME = 5000; // 5 seconds max in intersection
 
     public Car() {
         this.position = new Position(0, 0);
@@ -52,11 +63,14 @@ public class Car extends Thread {
         this.turningPath = new ArrayList<>();
         this.currentPathIndex = 0;
         this.isFollowingPath = false;
+        this.color = generateRandomColor();
     }
 
+    // Fix the constructor to initialize originalSpeed
     public Car(Position position, double speed, CarDirection direction, TrafficLight trafficLight) {
         this.position = position;
         this.speed = speed;
+        this.originalSpeed = speed; // Add this line to initialize originalSpeed
         this.direction = direction;
         this.trafficLight = trafficLight;
         this.detectionRadius = ConfigLoader.getInstance().getTrafficLightDetectionRadius();
@@ -69,17 +83,41 @@ public class Car extends Thread {
         this.turningPath = new ArrayList<>();
         this.currentPathIndex = 0;
         this.isFollowingPath = false;
+        this.color = generateRandomColor();
     }
 
+    // Add getter for color
+    public Color getColor() {
+        return color;
+    }
+    
+    // Add setter for color
+    public void setColor(Color color) {
+        this.color = color;
+    }
+    
+    // Method to generate random colors
+    private Color generateRandomColor() {
+        Random random = new Random();
+        // Generate colors excluding very light or very dark ones
+        return Color.rgb(
+            50 + random.nextInt(180),  // Red: 50-229
+            50 + random.nextInt(180),  // Green: 50-229
+            50 + random.nextInt(180)   // Blue: 50-229
+        );
+    }
+
+    // Fix the calculateLaneOffset method to be consistent
     private int calculateLaneOffset() {
         int roadWidth = ConfigLoader.getInstance().getRoadWidth();
         int laneWidth = roadWidth / 2;
 
         switch (direction) {
-            case NORTH: return laneWidth/2;   // RIGHT side of road
-            case SOUTH: return -laneWidth/2;  // LEFT side of road
-            case EAST: return laneWidth/2;    // BOTTOM side of road (changed from top)
-            case WEST: return -laneWidth/2;   // TOP side of road (changed from bottom)
+            // Right-side driving system
+            case NORTH: return laneWidth/2;    // RIGHT side of vertical road (positive X offset)
+            case SOUTH: return -laneWidth/2;   // LEFT side of vertical road (negative X offset)
+            case EAST: return laneWidth/2;     // BOTTOM side of horizontal road (positive Y offset)
+            case WEST: return -laneWidth/2;    // TOP side of horizontal road (negative Y offset)
             default: return 0;
         }
     }
@@ -113,6 +151,10 @@ public class Car extends Thread {
         return size;
     }
 
+    public Road getCurrentRoad() {
+        return currentRoad;
+    }
+
     @Override
     public void run() {
         while(!Thread.interrupted()) {
@@ -127,13 +169,27 @@ public class Car extends Thread {
 
     public void move() {
         synchronized(positionLock) {
-            // Check for collisions first
+            // Check for collisions first, but use new behavior
             if (shouldStopForNearbyVehicle()) {
+                // Add small random movement to try to resolve deadlocks
+                if (random.nextInt(100) < 5) { // 5% chance to jiggle
+                    double jiggle = 0.2;
+                    position.setX(position.getX() + (random.nextDouble() * jiggle * 2) - jiggle);
+                    position.setY(position.getY() + (random.nextDouble() * jiggle * 2) - jiggle);
+                }
                 return;
             }
 
             // Handle intersection logic - completely separate from normal movement
             if (currentIntersection != null) {
+                // Add this at the beginning of handleIntersectionMovement
+                // Check for too long in intersection
+                if (System.currentTimeMillis() - intersectionEntryTime > 5000) {
+                    System.out.println("Car stuck in intersection for too long - forcing emergency exit");
+                    forceExitIntersection();
+                    return;
+                }
+                
                 handleIntersectionMovement();
                 return; // Don't proceed with normal road logic
             }
@@ -142,9 +198,12 @@ public class Car extends Thread {
             if (isInCooldown) {
                 if (System.currentTimeMillis() < cooldownEndTime) {
                     moveInDirection();
+                    adjustPositionForLane(); // Add this line to maintain lane positioning
                     return;
                 } else {
                     isInCooldown = false;
+                    // Immediately restore speed when cooldown ends
+                    speed = originalSpeed;
                 }
             }
 
@@ -168,10 +227,32 @@ public class Car extends Thread {
 
             // Normal movement on road
             moveInDirection();
+            adjustPositionForLane(); // Add this line to maintain lane positioning
+
+            // After normal movement, ensure we restore speed much more aggressively
+            if (speed < originalSpeed) {
+                // Always restore speed by 5% each frame (no random chance)
+                speed = Math.min(originalSpeed, speed * 1.05);
+                
+                // If speed is severely reduced, boost it more aggressively
+                if (speed < originalSpeed * 0.5) {
+                    speed = Math.max(speed, originalSpeed * 0.5);
+                }
+            }
+            
+            // Try to recover if car might be stuck
+            if (speed < originalSpeed * 0.3) {
+                recoverFromStuck();
+            }
         }
     }
 
     private void handleIntersectionMovement() {
+        // First, check for nearby cars and stop if needed
+        if (shouldStopForNearbyVehicle()) {
+            return; // Don't move if we'd hit another car
+        }
+        
         Position intersectionPos = currentIntersection.getPosition();
 
         // Calculate distance to intersection center
@@ -305,6 +386,7 @@ public class Car extends Thread {
         turningPath.add(exitPoint);
     }
 
+    // Fixed generateDirectTurningPath method with proper Bezier curve implementation
     private void generateDirectTurningPath(CarDirection fromDirection, CarDirection toDirection, Position center) {
         turningPath.clear();
         
@@ -312,7 +394,6 @@ public class Car extends Thread {
         int roadWidth = ConfigLoader.getInstance().getRoadWidth();
         
         // Calculate entry and exit points of the intersection
-        // These will be at the edges of the intersection, not in the center
         Position entryPoint = calculateIntersectionEntryPoint(center, fromDirection, intersectionRadius);
         Position exitPoint = calculateIntersectionExitPoint(center, toDirection, intersectionRadius);
         
@@ -322,13 +403,8 @@ public class Car extends Thread {
         // Determine control points for a smooth curve without going to center
         Position controlPoint1, controlPoint2;
         
-        // For a smooth turn, control points should be positioned along the path
-        // but shifted to create a natural arc without going through the center
-        
-        // First control point - from entry point in the entry direction
+        // Create control points for a natural arc
         controlPoint1 = createControlPoint(entryPoint, fromDirection, intersectionRadius * 0.6);
-        
-        // Second control point - from exit point in the opposite of exit direction
         controlPoint2 = createControlPoint(exitPoint, getOppositeDirection(toDirection), intersectionRadius * 0.6);
         
         // Generate points along the Bezier curve
@@ -336,18 +412,26 @@ public class Car extends Thread {
         for (int i = 1; i <= numPoints; i++) {
             double t = i / (double) numPoints;
             
-            // Cubic Bezier formula: B(t) = (1-t)³P₀ + 3(1-t)²tP₁ + 3(1-t)t²P₂ + t³P₃
-            double x = bezierPoint(t, entryPoint.getX(), controlPoint1.getX(), controlPoint2.getX(), exitPoint.getX());
-            double y = bezierPoint(t, entryPoint.getY(), controlPoint1.getY(), controlPoint2.getY(), exitPoint.getY());
+            // Calculate point along Bezier curve
+            double x = bezierPoint(t, entryPoint.getX(), controlPoint1.getX(), 
+                                 controlPoint2.getX(), exitPoint.getX());
+            double y = bezierPoint(t, entryPoint.getY(), controlPoint1.getY(), 
+                                 controlPoint2.getY(), exitPoint.getY());
             
+            // Add point to path
             turningPath.add(new Position(x, y));
         }
-    }
-    
-    private Position createControlPoint(Position basePoint, CarDirection direction, double distance) {
-        double x = basePoint.getX();
-        double y = basePoint.getY();
         
+        // Add exit point as final destination
+        turningPath.add(exitPoint);
+    }
+
+    // Add the missing createControlPoint method
+    private Position createControlPoint(Position startPoint, CarDirection direction, double distance) {
+        double x = startPoint.getX();
+        double y = startPoint.getY();
+        
+        // Extend in the specified direction
         switch (direction) {
             case NORTH: return new Position(x, y - distance);
             case SOUTH: return new Position(x, y + distance);
@@ -356,7 +440,7 @@ public class Car extends Thread {
             default: return new Position(x, y);
         }
     }
-    
+
     private Position calculateIntersectionEntryPoint(Position center, CarDirection direction, int radius) {
         // Adjust entry point based on lane offset to keep cars in their proper lane
         double adjustedRadius = radius * 0.9; // Slightly inside the intersection edge
@@ -384,16 +468,17 @@ public class Car extends Thread {
         }
     }
     
-    // Calculate lane offset for a specific direction (helpful for exit point calculations)
+    // Fix calculateLaneOffset(CarDirection dir) to match
     private int calculateLaneOffset(CarDirection dir) {
         int roadWidth = ConfigLoader.getInstance().getRoadWidth();
         int laneWidth = roadWidth / 2;
 
         switch (dir) {
-            case NORTH: return laneWidth/2;   // RIGHT side of road
-            case SOUTH: return -laneWidth/2;  // LEFT side of road
-            case EAST: return laneWidth/2;    // BOTTOM side of road
-            case WEST: return -laneWidth/2;   // TOP side of road
+            // Right-side driving system (MUST MATCH the method above)
+            case NORTH: return laneWidth/2;    // RIGHT side of vertical road (positive X offset)
+            case SOUTH: return -laneWidth/2;   // LEFT side of vertical road (negative X offset)
+            case EAST: return laneWidth/2;     // BOTTOM side of horizontal road
+            case WEST: return -laneWidth/2;    // TOP side of horizontal road
             default: return 0;
         }
     }
@@ -410,11 +495,11 @@ public class Car extends Thread {
     private void exitIntersectionToRoad(Road road, Position intersectionPos) {
         // Calculate exit position based on direction
         int exitDistance = 35; // Slightly larger than intersection radius
-
+    
         // Set X position based on road with lane offset
         if (direction == CarDirection.NORTH || direction == CarDirection.SOUTH) {
             position.setX(road.getX1() + laneOffset);
-
+    
             // Set Y position to be outside intersection
             if (direction == CarDirection.NORTH) {
                 position.setY(intersectionPos.getY() - exitDistance);
@@ -423,8 +508,8 @@ public class Car extends Thread {
             }
         }
         else { // EAST or WEST
-            position.setY(road.getY1() + laneOffset);
-
+            position.setY(road.getY1() + laneOffset);  // Use consistent lane offset
+    
             // Set X position to be outside intersection
             if (direction == CarDirection.WEST) {
                 position.setX(intersectionPos.getX() - exitDistance);
@@ -432,36 +517,39 @@ public class Car extends Thread {
                 position.setX(intersectionPos.getX() + exitDistance);
             }
         }
-
+    
         exitIntersection();
     }
 
+    // Enhance emergency exit logic
     private void emergencyExitIntersection(Position intersectionPos) {
-        // Use hard-coded map knowledge to find valid exit position
-        double[] xCoords = {325.0, 900.0};
-        double[] yCoords = {225.0, 525.0};
-
-        // Find closest matching road coordinates
-        double bestX = getClosestValue(intersectionPos.getX(), xCoords);
-        double bestY = getClosestValue(intersectionPos.getY(), yCoords);
-
-        // Calculate exit position based on direction and map coordinates
-        int exitDistance = 35;
-
-        // Move car to appropriate position on grid based on direction
-        if (direction == CarDirection.NORTH || direction == CarDirection.SOUTH) {
-            position.setX(bestX + laneOffset);
-            position.setY(direction == CarDirection.NORTH ?
-                    intersectionPos.getY() - exitDistance :
-                    intersectionPos.getY() + exitDistance);
+        // Log this emergency situation
+        System.out.println("Emergency exit triggered at: " + intersectionPos.getX() + ", " + intersectionPos.getY());
+        
+        // Rest of your code...
+        // Make sure to place the car in a well-defined location on a valid road
+        
+        // Force refresh of car's current road
+        Road newRoad = findAnyValidRoad(direction);
+        if (newRoad != null) {
+            currentRoad = newRoad;
+            System.out.println("Found recovery road");
         } else {
-            position.setY(bestY + laneOffset);
-            position.setX(direction == CarDirection.WEST ?
-                    intersectionPos.getX() - exitDistance :
-                    intersectionPos.getX() + exitDistance);
+            System.out.println("Failed to find recovery road - car might disappear");
         }
+    }
 
-        exitIntersection();
+    // Add a method to find any valid road in the given direction
+    private Road findAnyValidRoad(CarDirection direction) {
+        List<Road> allRoads = getRoadsFromSimulation();
+        for (Road road : allRoads) {
+            if ((direction == CarDirection.NORTH || direction == CarDirection.SOUTH) && road.isVertical()) {
+                return road;
+            } else if ((direction == CarDirection.EAST || direction == CarDirection.WEST) && road.isHorizontal()) {
+                return road;
+            }
+        }
+        return null;
     }
 
     private double getClosestValue(double value, double[] options) {
@@ -479,11 +567,14 @@ public class Car extends Thread {
         return closestVal;
     }
 
+    // Update checkIntersectionEntry to initialize the entry time
     private void checkIntersectionEntry() {
         if (currentIntersection == null) {
             for (Intersection intersection : intersections) {
                 if (isInIntersection(intersection)) {
                     currentIntersection = intersection;
+                    // Set the entry time when car enters an intersection
+                    intersectionEntryTime = System.currentTimeMillis();
                     System.out.println("Car entered intersection at " +
                             intersection.getPosition().getX() + "," +
                             intersection.getPosition().getY());
@@ -494,19 +585,21 @@ public class Car extends Thread {
     }
 
     private void moveInDirection() {
-        switch (direction) {
-            case NORTH:
-                position.setY(position.getY() - speed);
-                break;
-            case SOUTH:
-                position.setY(position.getY() + speed);
-                break;
-            case EAST:
-                position.setX(position.getX() + speed);
-                break;
-            case WEST:
-                position.setX(position.getX() - speed);
-                break;
+        synchronized(positionLock) {
+            switch (direction) {
+                case NORTH:
+                    position.setY(position.getY() - speed);
+                    break;
+                case SOUTH:
+                    position.setY(position.getY() + speed);
+                    break;
+                case EAST:
+                    position.setX(position.getX() + speed);
+                    break;
+                case WEST:
+                    position.setX(position.getX() - speed);
+                    break;
+            }
         }
     }
 
@@ -536,7 +629,116 @@ public class Car extends Thread {
         // This will be called by other methods
     }
 
+    // Improve isSafeToExitIntersection method with more aggressive timeout
+    private boolean isSafeToExitIntersection() {
+        // More aggressive timeout - force exit after just 2 seconds
+        if (System.currentTimeMillis() - intersectionEntryTime > 2000) {
+            System.out.println("Forcing exit from intersection due to TIMEOUT");
+            return true;
+        }
+        
+        // Reduce safety radius even further
+        double exitSafetyRadius = minSafeDistance * 0.5; // Much more permissive
+        
+        int blockedExitCount = 0;
+        
+        for (Car otherCar : nearbyVehicles) {
+            if (otherCar == this) continue;
+            
+            // Only check cars in our target direction
+            if (targetDirection != null && otherCar.getDirection() != targetDirection) continue;
+            
+            double distance = distanceTo(otherCar.getPosition());
+            if (distance < exitSafetyRadius) {
+                blockedExitCount++;
+            }
+        }
+        
+        // More aggressive - even a single blocking car should be ignored after 1.5 seconds
+        if (blockedExitCount > 0 && System.currentTimeMillis() - intersectionEntryTime > 1500) {
+            System.out.println("Forcing exit despite " + blockedExitCount + " blocking cars");
+            return true;
+        }
+        
+        return blockedExitCount == 0;
+    }
+
+    // Add a super-emergency exit mechanism
+    private void forceExitIntersection() {
+        System.out.println("EMERGENCY FORCE EXIT");
+        
+        // Ensure we have a valid direction
+        if (targetDirection == null) {
+            targetDirection = direction;
+        }
+        
+        // Set this direction
+        setDirection(targetDirection);
+        
+        // Force position to be outside of the intersection
+        Position intersectionPos = currentIntersection.getPosition();
+        double forcedDistance = 50; // Force 50 pixels away from intersection
+        
+        // Reposition the car outside the intersection in the direction of travel
+        switch (targetDirection) {
+            case NORTH:
+                position.setX(intersectionPos.getX() + laneOffset);
+                position.setY(intersectionPos.getY() - forcedDistance);
+                break;
+            case SOUTH:
+                position.setX(intersectionPos.getX() + laneOffset);
+                position.setY(intersectionPos.getY() + forcedDistance);
+                break;
+            case EAST:
+                position.setX(intersectionPos.getX() + forcedDistance);
+                position.setY(intersectionPos.getY() + laneOffset);
+                break;
+            case WEST:
+                position.setX(intersectionPos.getX() - forcedDistance);
+                position.setY(intersectionPos.getY() + laneOffset);
+                break;
+        }
+        
+        // Try to find a valid road, but don't worry if we can't
+        Road bestRoad = findMatchingRoad(targetDirection, intersectionPos);
+        if (bestRoad != null) {
+            currentRoad = bestRoad;
+        }
+        
+        // Reset all intersection-related state
+        currentIntersection = null;
+        turningInProgress = false;
+        isFollowingPath = false;
+        targetDirection = null;
+        speed = originalSpeed;
+        
+        // Set a cooldown period
+        isInCooldown = true;
+        cooldownEndTime = System.currentTimeMillis() + COOLDOWN_DURATION;
+    }
+
+    // Improve the exitIntersection method for more reliable behavior
     private void exitIntersection() {
+        // Only add this safety check in appropriate places
+        if (!isSafeToExitIntersection()) {
+            // Wait before trying to exit
+            return;
+        }
+        
+        // Make sure we've actually set a direction before exiting
+        if (targetDirection != null) {
+            setDirection(targetDirection);
+        }
+        
+        // Try to ensure we're on a valid road
+        if (currentRoad == null) {
+            Road bestRoad = findMatchingRoad(direction, currentIntersection.getPosition());
+            if (bestRoad != null) {
+                currentRoad = bestRoad;
+                adjustFinalPositionOnRoad(bestRoad);
+            }
+        }
+        
         currentIntersection = null;
         turningInProgress = false;
         targetDirection = null;
@@ -544,10 +746,46 @@ public class Car extends Thread {
         // Set a cooldown period after exiting intersection
         isInCooldown = true;
         cooldownEndTime = System.currentTimeMillis() + COOLDOWN_DURATION;
+        
+        // Make sure speed is restored to original
+        speed = originalSpeed;
     }
 
+    // In Car.java - Fix the adjustPositionForLane() method
     private void adjustPositionForLane() {
-        // Implementation retained from original code
+        if (currentIntersection != null || currentRoad == null) return;
+        
+        // Calculate precise lane offset based on direction
+        int roadWidth = ConfigLoader.getInstance().getRoadWidth();
+        int laneWidth = roadWidth / 2;
+        int centerOffset = laneWidth / 2; // Position in center of lane
+        
+        // Apply lane offset based on direction and road orientation
+        if (currentRoad.isHorizontal()) {
+            // Horizontal road - adjust Y position
+            double targetY;
+            if (direction == CarDirection.EAST) {
+                // East - use bottom lane (positive offset)
+                targetY = currentRoad.getY1() + centerOffset;
+            } else {
+                // West - use top lane (negative offset)  
+                targetY = currentRoad.getY1() - centerOffset;
+            }
+            // More assertive adjustment (was 0.9/0.1)
+            position.setY(position.getY() * 0.8 + targetY * 0.2);
+        } else {
+            // Vertical road - adjust X position - FIXED DIRECTIONS FOR RIGHT-SIDE DRIVING
+            double targetX;
+            if (direction == CarDirection.SOUTH) {
+                // South - use LEFT lane (negative offset)
+                targetX = currentRoad.getX1() - centerOffset;
+            } else {
+                // North - use RIGHT lane (positive offset)
+                targetX = currentRoad.getX1() + centerOffset;
+            }
+            // More assertive adjustment
+            position.setX(position.getX() * 0.8 + targetX * 0.2);
+        }
     }
 
     private List<Road> getRoadsFromSimulation() {
@@ -586,6 +824,20 @@ public class Car extends Thread {
 
                     // Stop if we're within detection radius but not too close
                     if (distance < detectionRadius && distance > 5) {
+                        // Notify the intersection that a car is waiting
+                        // Convert car direction to traffic light direction
+                        TrafficLight.Direction waitDirection;
+                        switch (direction) {
+                            case NORTH: waitDirection = TrafficLight.Direction.SOUTH; break;
+                            case SOUTH: waitDirection = TrafficLight.Direction.NORTH; break;
+                            case EAST: waitDirection = TrafficLight.Direction.WEST; break;
+                            case WEST: waitDirection = TrafficLight.Direction.EAST; break;
+                            default: waitDirection = TrafficLight.Direction.NORTH;
+                        }
+                        
+                        // Register this car as waiting
+                        intersection.addWaitingCar(waitDirection, this);
+                        
                         return true;
                     }
                 }
@@ -648,47 +900,67 @@ public class Car extends Thread {
         }
     }
 
+    // In Car.java - Fix the shouldStopForNearbyVehicle() method
     private boolean shouldStopForNearbyVehicle() {
         if (nearbyVehicles == null || nearbyVehicles.isEmpty()) {
             return false;
         }
 
+        boolean shouldSlow = false;
+        double slowDownFactor = 1.0;
+        
         for (Car otherCar : nearbyVehicles) {
-            if (otherCar == this) continue; // Skip self
+            if (otherCar == this) continue;
 
-            // Only consider cars on the same road and in same direction
-            if (currentRoad != otherCar.currentRoad || direction != otherCar.getDirection()) {
-                continue;
-            }
-
-            // Check if car is ahead of us based on direction
+            // Only consider cars that are directly ahead with narrower detection angle
             Position otherPos = otherCar.getPosition();
             boolean isAhead = false;
-
+            
+            // Use more precise angles to check only cars directly ahead
             switch (direction) {
                 case NORTH:
-                    isAhead = otherPos.getY() < position.getY();
+                    isAhead = otherPos.getY() < position.getY() && 
+                              Math.abs(otherPos.getX() - position.getX()) < size * 1.2;
                     break;
                 case SOUTH:
-                    isAhead = otherPos.getY() > position.getY();
+                    isAhead = otherPos.getY() > position.getY() && 
+                              Math.abs(otherPos.getX() - position.getX()) < size * 1.2;
                     break;
                 case EAST:
-                    isAhead = otherPos.getX() > position.getX();
+                    isAhead = otherPos.getX() > position.getX() && 
+                              Math.abs(otherPos.getY() - position.getY()) < size * 1.2;
                     break;
                 case WEST:
-                    isAhead = otherPos.getX() < position.getX();
+                    isAhead = otherPos.getX() < position.getX() && 
+                              Math.abs(otherPos.getY() - position.getY()) < size * 1.2;
                     break;
             }
 
             if (isAhead) {
                 double distance = distanceTo(otherPos);
-                if (distance < minSafeDistance) {
-                    return true; // Stop if too close
+                if (distance < size + 2) {  // Only emergency brake when actually touching
+                    // Slow dramatically but don't completely stop
+                    speed *= 0.3;
+                    return false; // Don't stop completely
+                } else if (distance < minSafeDistance) {
+                    // Slow down based on distance, but less aggressively
+                    shouldSlow = true;
+                    double factor = distance / minSafeDistance;
+                    // Scale the factor to be less harsh (0.6-1.0 instead of 0-1.0)
+                    factor = 0.6 + factor * 0.4;
+                    slowDownFactor = Math.min(slowDownFactor, factor);
                 }
             }
         }
+        
+        // Apply more gentle slowing
+        if (shouldSlow) {
+            // Less aggressive slowdown (0.9 instead of 0.8)
+            speed = speed * slowDownFactor * 0.9;
+            return false;
+        }
 
-        return false;
+        return false; // Never completely stop
     }
 
     public void setSimulation(Simulation simulation) {
@@ -777,5 +1049,17 @@ public class Car extends Thread {
         return bestRoad;
     }
 
+    // Add a method to help "jiggle" cars out of stuck positions
+    private void recoverFromStuck() {
+        // Jiggle more aggressively
+        double recoveryDistance = 1.0; // Was 0.5
+        double angle = random.nextDouble() * 2 * Math.PI;
+        
+        position.setX(position.getX() + Math.cos(angle) * recoveryDistance);
+        position.setY(position.getY() + Math.sin(angle) * recoveryDistance);
+        
+        // Much more aggressive speed recovery
+        speed = originalSpeed * 0.9; // Was 0.7
+    }
 }
 
