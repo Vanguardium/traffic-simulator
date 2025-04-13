@@ -31,7 +31,6 @@ public class TrafficApplication extends Application {
         stage.show();
     }
 
-    //Main method to launch the application
     public static void main(String[] args) {
         if (args.length > 0) {
             try {
