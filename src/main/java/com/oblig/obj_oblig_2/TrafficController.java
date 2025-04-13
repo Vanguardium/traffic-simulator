@@ -44,7 +44,7 @@ public class TrafficController {
     private int maxSpawnInterval = 200;
     private int maxCars; // Maximum number of cars allowed
 
-    private boolean autoSpawningEnabled = false; // Disabled by default
+    private boolean autoSpawningEnabled = true; // Disabled by default
 
     @FXML
     public void initialize() {
@@ -389,76 +389,82 @@ public class TrafficController {
             intersection.setupTrafficLights();
         }
 
-        // Add cars to multiple roads
+        // Create initial cars
         createCarsOnMultipleRoads();
+
+        // Explicitly start car threads if simulation is already running
+        if (simulationRunning) {
+            for (Car car : simulation.getCars()) {
+                if (!car.isAlive()) {
+                    car.start();
+                }
+            }
+        }
     }
 
     // In the createCarsOnMultipleRoads() method, allow for more initial cars
     private void createCarsOnMultipleRoads() {
         if (roads.isEmpty()) return;
-        
-        ConfigLoader config = ConfigLoader.getInstance();
-        int maxCarsPerRoad = config.getCarsPerRoad();
-        double baseCarSpeed = config.getCarSpeed();
-        double canvasWidth = trafficCanvas.getWidth();
-        double canvasHeight = trafficCanvas.getHeight();
-        int roadWidth = config.getRoadWidth();
-        int laneWidth = roadWidth / 2;
-        
+
+        // Set initial cars to zero (currently forces at least 1 car per direction)
+        int initialCarsPerDirection = 0; // Changed from Math.max(1, maxCarsPerRoad / 2);
+
         for (Road road : roads) {
-            // Random number of cars per road (1 to maxCarsPerRoad)
-            // You could increase this if you want more cars at startup
-            // For example: int carsForThisRoad = 5 + random.nextInt(5);
-            int carsForThisRoad = 1 + random.nextInt(maxCarsPerRoad);
-            createCarsForDirection(road, carsForThisRoad, baseCarSpeed, canvasWidth, canvasHeight, roadWidth);
+            // Only create cars if initialCarsPerDirection > 0
+            if (initialCarsPerDirection > 0) {
+                createCarsForDirection(road, initialCarsPerDirection,
+                        ConfigLoader.getInstance().getCarSpeed(),
+                        trafficCanvas.getWidth(), trafficCanvas.getHeight(),
+                        ConfigLoader.getInstance().getRoadWidth());
+            }
         }
     }
 
     private void createCarsForDirection(Road road, int carsPerRoad, double baseCarSpeed, double canvasWidth, double canvasHeight, int roadWidth) {
         int laneWidth = roadWidth / 2;
         ConfigLoader config = ConfigLoader.getInstance();
-        // Increase minimum spacing significantly to avoid initial collisions
-        double minSpacing = config.getMinCarDistance() * 5; // Much larger spacing
-        
+        // Use an even larger spacing for initial cars
+        double minSpacing = config.getMinCarDistance() * 10;
+
         // Create cars for both directions
         for (int dir = 0; dir < 2; dir++) {
-            boolean goingPositive = (dir == 0); // Alternate direction
-        
+            boolean goingPositive = (dir == 0);
+
             for (int i = 0; i < carsPerRoad; i++) {
                 Position startPos;
                 CarDirection carDirection;
-        
-                // Use larger spacing multiplier for each successive car
-                int spacing = (int) (minSpacing + (i * minSpacing)); // Progressive spacing
-        
+
+                // Use larger spacing for each successive car
+                double offset = 200 + (i * minSpacing); // Start further from edge
+
                 // Randomize car speed (-15% to +15% of base speed)
                 double speedVariation = 0.85 + (random.nextDouble() * 0.30);
                 double carSpeed = baseCarSpeed * speedVariation;
-        
+
                 if (road.isHorizontal()) {
                     if (goingPositive) {
                         // East-bound - should be on the BOTTOM half of horizontal road
                         carDirection = CarDirection.EAST;
-                        startPos = new Position(-150, road.getY1() + (double) laneWidth/2); // Fixed distance, not random
+                        startPos = new Position(offset, road.getY1() + (double) laneWidth/2);
                     } else {
                         // West-bound - should be on the TOP half of horizontal road
                         carDirection = CarDirection.WEST;
-                        startPos = new Position(canvasWidth + 150, road.getY1() - (double) laneWidth/2); // Fixed distance
+                        startPos = new Position(canvasWidth - offset, road.getY1() - (double) laneWidth/2);
                     }
                 } else { // Vertical road
                     if (goingPositive) {
-                        // South-bound - should be on the RIGHT half of vertical roadd
+                        // South-bound - should be on the LEFT half of vertical road
                         carDirection = CarDirection.SOUTH;
-                        startPos = new Position(road.getX1() + (double) laneWidth/2, -150); // Fixed distance
+                        startPos = new Position(road.getX1() - (double) laneWidth/2, offset);
                     } else {
-                        // North-bound - should be on the LEFT half of vertical road
+                        // North-bound - should be on the RIGHT half of vertical road
                         carDirection = CarDirection.NORTH;
-                        startPos = new Position(road.getX1() - (double) laneWidth/2, canvasHeight + 150); // Fixed distance
+                        startPos = new Position(road.getX1() + (double) laneWidth/2, canvasHeight - offset);
                     }
                 }
-        
+
                 Car car = new Car(startPos, carSpeed, carDirection, null);
-                car.setSimulation(simulation); // Add this line to set simulation
+                car.setSimulation(simulation);
                 car.setCurrentRoad(road);
                 car.setIntersections(intersections);
                 simulation.addCar(car);
@@ -555,7 +561,7 @@ public class TrafficController {
                     distance = Math.min(southDist, northDist);
                 }
                 
-                if (distance < config.getMinCarDistance() * 5) {
+                if (distance < config.getMinCarDistance() * 2) {
                     carNearEntryPoint = true;
                     break;
                 }
@@ -716,7 +722,7 @@ public class TrafficController {
         double canvasHeight = trafficCanvas.getHeight();
         int roadWidth = config.getRoadWidth();
         int laneWidth = roadWidth / 2;
-        double minSafeDistance = config.getMinCarDistance() * 5; // Use the same threshold as elsewhere
+        double minSafeDistance = config.getMinCarDistance() * 2; // Use the same threshold as elsewhere
         
         // Calculate entry position based on direction
         Position entryPos;

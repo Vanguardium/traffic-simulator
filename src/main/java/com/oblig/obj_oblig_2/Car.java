@@ -33,6 +33,9 @@ public class Car extends Thread {
     private boolean turningInProgress = false;
     private CarDirection targetDirection = null;
     private final Object positionLock = new Object();
+    private Position lastRecordedPosition;
+    private long lastMovementTime;
+    private static final long STUCK_THRESHOLD_MS = 5000; // 5 seconds
     
     // Add Random object for all methods that need randomness
     private final Random random = new Random();
@@ -168,6 +171,10 @@ public class Car extends Thread {
     }
 
     public void move() {
+        if (lastRecordedPosition == null) {
+            lastRecordedPosition = new Position(position.getX(), position.getY());
+            lastMovementTime = System.currentTimeMillis();
+        }
         synchronized(positionLock) {
             // Check for collisions first, but use new behavior
             if (shouldStopForNearbyVehicle()) {
@@ -244,6 +251,22 @@ public class Car extends Thread {
             if (speed < originalSpeed * 0.3) {
                 recoverFromStuck();
             }
+
+            double distance = Math.sqrt(
+                    Math.pow(position.getX() - lastRecordedPosition.getX(), 2) +
+                            Math.pow(position.getY() - lastRecordedPosition.getY(), 2));
+
+            if (distance > 5.0) {
+                // Car has moved, update the reference position and time
+                lastRecordedPosition = new Position(position.getX(), position.getY());
+                lastMovementTime = System.currentTimeMillis();
+            } else if (System.currentTimeMillis() - lastMovementTime > STUCK_THRESHOLD_MS) {
+                // Car is stuck, try to recover
+                recoverFromStuck();
+                // Update time to avoid immediate re-detection
+                lastMovementTime = System.currentTimeMillis();
+            }
+
         }
     }
 
