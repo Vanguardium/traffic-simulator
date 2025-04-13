@@ -12,6 +12,7 @@ import java.util.Set;
 public class ConfigLoader {
     private static ConfigLoader instance;
     private JsonNode config;
+    private double currentCarSpeed = 0;
 
     private ConfigLoader(String configFile) throws IOException {
         ObjectMapper mapper = new ObjectMapper();
@@ -118,5 +119,24 @@ public class ConfigLoader {
     }
     public int getMaxCars() {
         return config.path("simulation").path("maxCars").asInt(50); // Default maximum of 50 cars
+    }
+
+    // This is an in-memory update, not a file update
+    public void setCarSpeed(double speed) {
+        // This would require a mutable configuration or a way to update the config
+        // Since the current implementation doesn't support this, you'd need to 
+        // maintain a separate value
+        this.currentCarSpeed = speed;
+    }
+
+    // Add this method to update the current car speed 
+    // (alternative name with same functionality as setCarSpeed)
+    public void setCurrentCarSpeed(double speed) {
+        this.currentCarSpeed = speed;
+    }
+
+    // And a getter for this field
+    public double getCurrentCarSpeed() {
+        return currentCarSpeed != 0 ? currentCarSpeed : getCarSpeed();
     }
 }

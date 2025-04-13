@@ -11,10 +11,20 @@ import java.util.List;
 import java.util.Set;
 import java.util.Random;
 import javafx.scene.transform.Rotate;
+import javafx.scene.control.Slider;
+import javafx.scene.control.Label;
+import javafx.beans.value.ChangeListener;
+import javafx.beans.value.ObservableValue;
 
 public class TrafficController {
     @FXML
     private Canvas trafficCanvas;
+
+    @FXML
+    private Slider speedSlider;
+
+    @FXML
+    private Label speedLabel;
 
     private GraphicsContext gc;
     private AnimationTimer animationTimer;
@@ -32,6 +42,8 @@ public class TrafficController {
     private int minSpawnInterval = 50;
     private int maxSpawnInterval = 200;
     private int maxCars; // Maximum number of cars allowed
+
+    private boolean autoSpawningEnabled = false; // Disabled by default
 
     @FXML
     public void initialize() {
@@ -66,13 +78,15 @@ public class TrafficController {
                 // Update cars with information about nearby vehicles
                 updateVehicleAwareness();
                 
-                // Spawn new cars only if below the maximum
-                framesSinceLastSpawn++;
-                if (framesSinceLastSpawn >= currentSpawnInterval && simulation.getCars().size() < maxCars) {
-                    spawnNewCars();
-                    framesSinceLastSpawn = 0;
-                    // Randomize the next spawn interval
-                    currentSpawnInterval = minSpawnInterval + random.nextInt(maxSpawnInterval - minSpawnInterval);
+                // Only spawn cars automatically if enabled
+                if (autoSpawningEnabled) {
+                    framesSinceLastSpawn++;
+                    if (framesSinceLastSpawn >= currentSpawnInterval && simulation.getCars().size() < maxCars) {
+                        spawnNewCars();
+                        framesSinceLastSpawn = 0;
+                        // Randomize the next spawn interval
+                        currentSpawnInterval = minSpawnInterval + random.nextInt(maxSpawnInterval - minSpawnInterval);
+                    }
                 }
 
                 // Redraw everything
@@ -81,6 +95,22 @@ public class TrafficController {
                 frameCount++;
             }
         };
+
+        // Add slider listener to update the label and car speeds
+        if (speedSlider != null) {
+            // Use the existing config object instead of creating a new one
+            if (config != null) {
+                double initialSpeed = config.getCarSpeed();
+                speedSlider.setValue(initialSpeed);
+                speedLabel.setText(String.format("%.1f", initialSpeed));
+            }
+            
+            speedSlider.valueProperty().addListener((observable, oldValue, newValue) -> {
+                double speed = Math.round(newValue.doubleValue() * 10.0) / 10.0;
+                speedLabel.setText(String.format("%.1f", speed));
+                adjustSpeed();
+            });
+        }
     }
 
     // Add methods to handle button actions from FXML
@@ -109,6 +139,85 @@ public class TrafficController {
         setupSimulation();
         drawMap();
         startSimulation();
+    }
+
+    @FXML
+    public void addCar() {
+        System.out.println("Add Car button clicked. Cars before: " + simulation.getCars().size());
+        spawnNewCars();
+        System.out.println("Cars after: " + simulation.getCars().size());
+        
+        // If simulation is running, start the car thread
+        if (simulationRunning && !simulation.getCars().isEmpty()) {
+            Car lastAddedCar = simulation.getCars().get(simulation.getCars().size() - 1);
+            if (!lastAddedCar.isAlive()) {
+                lastAddedCar.start();
+            }
+        }
+        
+        // Force redraw
+        drawMap();
+        drawCars();
+    }
+
+    @FXML
+    public void removeCar() {
+        List<Car> cars = simulation.getCars();
+        System.out.println("Remove Car button clicked. Cars before: " + cars.size());
+        
+        if (!cars.isEmpty()) {
+            Car carToRemove = cars.get(cars.size() - 1);
+            carToRemove.interrupt();
+            boolean removed = cars.remove(carToRemove);
+            System.out.println("Car removed: " + removed + ", Cars after: " + cars.size());
+            
+            // Force redraw
+            drawMap();
+            drawCars();
+        } else {
+            System.out.println("No cars to remove.");
+        }
+    }
+
+    @FXML
+    public void adjustSpeed() {
+        if (speedSlider != null) {
+            double newSpeed = speedSlider.getValue();
+            
+            // Update the label if it wasn't updated by the listener
+            if (speedLabel != null) {
+                speedLabel.setText(String.format("%.1f", newSpeed));
+            }
+            
+            // Update speed in ConfigLoader
+            ConfigLoader config = ConfigLoader.getInstance();
+            if (config != null) {
+                config.setCurrentCarSpeed(newSpeed);
+            }
+            
+            // Update all cars with the new speed
+            for (Car car : simulation.getCars()) {
+                // Apply some randomization to make it more natural (±10%)
+                double randomFactor = 0.9 + (Math.random() * 0.2);
+                car.setSpeed(newSpeed * randomFactor);
+                
+                // Also update the originalSpeed field if the car has one
+                try {
+                    // Using reflection to access and update the private field
+                    java.lang.reflect.Field field = Car.class.getDeclaredField("originalSpeed");
+                    field.setAccessible(true);
+                    field.set(car, newSpeed * randomFactor);
+                } catch (Exception e) {
+                    // Field might not exist, ignore
+                }
+            }
+        }
+    }
+
+    @FXML
+    public void toggleAutoSpawning() {
+        autoSpawningEnabled = !autoSpawningEnabled;
+        System.out.println("Auto-spawning " + (autoSpawningEnabled ? "enabled" : "disabled"));
     }
 
     private void drawMap() {
@@ -257,8 +366,6 @@ public class TrafficController {
     }
 
     private void createCarsForDirection(Road road, int carsPerRoad, double baseCarSpeed, double canvasWidth, double canvasHeight, int roadWidth) {
-        Car car = new Car();
-        car.setSimulation(simulation);
         int laneWidth = roadWidth / 2;
         ConfigLoader config = ConfigLoader.getInstance();
         double minSpacing = config.getMinCarDistance() * 3;
@@ -300,7 +407,8 @@ public class TrafficController {
                     }
                 }
 
-                car = new Car(startPos, carSpeed, carDirection, null);
+                Car car = new Car(startPos, carSpeed, carDirection, null);
+                car.setSimulation(simulation); // Add this line to set simulation
                 car.setCurrentRoad(road);
                 car.setIntersections(intersections);
                 simulation.addCar(car);
@@ -340,8 +448,7 @@ public class TrafficController {
     
     private void spawnNewCars() {
         if (roads.isEmpty()) return;
-        Car car = new Car();
-        car.setSimulation(simulation);
+        
         // Get the current number of cars
         int currentCarCount = simulation.getCars().size();
 
@@ -353,7 +460,7 @@ public class TrafficController {
         int newCarsToAdd = Math.min(3, availableSlots); // Add at most 3 new cars at once
 
         ConfigLoader config = ConfigLoader.getInstance();
-        double baseCarSpeed = config.getCarSpeed();
+        double baseCarSpeed = config.getCurrentCarSpeed();
         double canvasWidth = trafficCanvas.getWidth();
         double canvasHeight = trafficCanvas.getHeight();
         int roadWidth = config.getRoadWidth();
@@ -404,8 +511,8 @@ public class TrafficController {
                         startPos = new Position(-50 - random.nextInt(50), road.getY1() + (double) laneWidth/2);
                     } else {
                         // West-bound - should be on the TOP half of horizontal road
-                        direction = CarDirection.WEST;
                         startPos = new Position(canvasWidth + 50 + random.nextInt(50), road.getY1() - (double) laneWidth/2);
+                        direction = CarDirection.WEST;
                     }
                 } else { // Vertical road
                     if (goingPositive) {
@@ -419,7 +526,8 @@ public class TrafficController {
                     }
                 }
 
-                car = new Car(startPos, carSpeed, direction, null);
+                Car car = new Car(startPos, carSpeed, direction, null);
+                car.setSimulation(simulation); // Add this line to set simulation
                 car.setCurrentRoad(road);
                 car.setIntersections(intersections);
                 simulation.addCar(car);

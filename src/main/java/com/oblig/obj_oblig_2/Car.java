@@ -35,6 +35,9 @@ public class Car extends Thread {
     private int currentPathIndex;
     private boolean isFollowingPath;
 
+    // Add a new field to store the original speed
+    private double originalSpeed;
+
     public Car() {
         this.position = new Position(0, 0);
         this.speed = 0;
@@ -277,10 +280,10 @@ public class Car extends Thread {
                     emergencyExitIntersection(intersectionPos);
                 }
                 
-                // Reset path following and restore normal speed
+                // Reset path following and restore ORIGINAL speed (not default)
                 isFollowingPath = false;
                 turningPath.clear();
-                speed = ConfigLoader.getInstance().getCarSpeed(); // Restore normal speed
+                speed = originalSpeed; // Restore original speed instead of default
                 exitIntersection();
             }
             return;
@@ -557,6 +560,12 @@ public class Car extends Thread {
                 Math.pow(position.getX() - intPos.getX(), 2) +
                         Math.pow(position.getY() - intPos.getY(), 2)
         );
+        
+        // If we're entering an intersection, store the current speed
+        if (distance < 30 && currentIntersection == null) {
+            originalSpeed = speed;
+        }
+        
         return distance < 30; // Intersection radius
     }
 
@@ -707,6 +716,9 @@ public class Car extends Thread {
         return distance < ((double) size / 2 + (double) trafficLightSize / 2);
     }
 
+    public void setSpeed(double speed) {
+        this.speed = speed;
+    }
 
 
     private double distanceBetween(Position p1, Position p2) {

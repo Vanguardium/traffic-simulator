@@ -18,7 +18,7 @@ public class TrafficApplication extends Application {
         }
     
         FXMLLoader fxmlLoader = new FXMLLoader(TrafficApplication.class.getResource("traffic-view.fxml"));
-        Scene scene = new Scene(fxmlLoader.load(), 1200, 750); // Fixed size
+        Scene scene = new Scene(fxmlLoader.load(), 1200, 800); // Fixed size
         stage.setTitle("Traffic Simulation");
         stage.setScene(scene);
     
